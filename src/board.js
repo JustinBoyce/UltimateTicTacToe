@@ -1,24 +1,29 @@
 // This file defines a single board and its squares
 import React from 'react';
 
-function Square(props) {
-    return (
-        <button className="square" onClick={props.onClick}>
-            {props.value}
-        </button>
-    );
-}
+// This Square function component was used in the tutorial, but was 
+// unnecessary for my needs. I am leaving it for future reference
+// function Square(props) {
+//     return (
+//         <button className="square" onClick={props.onClick}>
+//             {props.value}
+//         </button>
+//     );
+// }
     
-class Board extends React.Component {
+export default class Board extends React.Component {
     renderSquare(i) {
         return (
-            <Square 
+            <button className="square" onClick={() => this.props.onClick(i)}>
+                {this.props.squares[i]}
+            </button>
+            /* <Square 
                 value={this.props.squares[i]}
                 onClick={() => this.props.onClick(i)}
-            />
+            /> */
         );
     }
-    
+
     render() {  
         let styles = {
             border: '4px solid #000'
@@ -50,5 +55,3 @@ class Board extends React.Component {
         );
     } 
 }
-
-export default Board;

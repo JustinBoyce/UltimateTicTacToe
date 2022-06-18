@@ -15,6 +15,7 @@ class Game extends React.Component {
             }],
             xIsNext: true,
             stepNumber: 0,
+            historyStyle: {display: "none"}
         };
     }
 
@@ -45,6 +46,10 @@ class Game extends React.Component {
             bigSquares[j] = this.state.xIsNext ? 'X' : 'O';
             availableBoards = 4;
         }
+        // if there is a tie, set bigSquares to '/'
+        else if (isTied(squares[j])) {
+            bigSquares[j] = '/'
+        }
         // If board corresponding to i has been completed, then player can play anywhere
         if (bigSquares[i])
             availableBoards = 4;
@@ -68,6 +73,18 @@ class Game extends React.Component {
             stepNumber: step,
             xIsNext: (step % 2) === 0
         });
+    }
+
+    handleShowHideHistoryClick() {
+        if (this.state.historyStyle.display === "none") {
+            this.setState({
+                historyStyle: {display: "inline"}
+            });
+        }
+        else 
+            this.setState({
+                historyStyle: {display: "none"}
+            });
     }
 
     renderBoard(curr, j) {
@@ -136,9 +153,10 @@ class Game extends React.Component {
                     </div> 
                 </div>
 
-                <div className="game-info">
-                <div>{ status }</div>
-                <ol>{ moves }</ol>
+                <button onClick={() => this.handleShowHideHistoryClick()}>Show/hide history</button>
+                <div className="game-info" style={this.state.historyStyle}>
+                    <div>{ status }</div>
+                    <ol>{ moves }</ol>
                 </div>
             </div>
         );
@@ -156,13 +174,32 @@ function calculateWinner(squares) {
         [0, 4, 8],
         [2, 4, 6],
     ];
-    for (let i = 0; i < lines.length; i++) {
-        const [a, b, c] = lines[i];
-        if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-        return squares[a];
+    // Tied squares work for both teams
+    // TODO: try to refactor and improve this code
+    for (let player of ['X', 'O']) {
+        let fixedSquares = squares.slice();
+        for (let k = 0; k < fixedSquares.length; k++) {
+            if (fixedSquares[k] === '/')
+                fixedSquares[k] = player;
+        }
+        for (let i = 0; i < lines.length; i++) {
+            const [a, b, c] = lines[i];
+            if (fixedSquares[a] && fixedSquares[a] === fixedSquares[b] && fixedSquares[a] === fixedSquares[c]) {
+                return fixedSquares[a];
+            }
         }
     }
+    
     return null;
+}
+
+function isTied(squares) {
+    for(let k = 0; k < squares.length; k++) {
+        // if a square has not been assigned a value, there is no tie
+        if (!squares[k])
+            return false;
+    }
+    return true;
 }
   
   // ========================================
