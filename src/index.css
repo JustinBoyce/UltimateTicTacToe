@@ -123,11 +123,11 @@ li button:hover {
     background: #e9ecef;
 }
 
-/* Add X and O colors */
-.square:contains('X') {
-    color: #e74c3c;
+/* X and O colors */
+.square-x {
+    color: #09aa09;
 }
 
-.square:contains('O') {
+.square-o {
     color: #3498db;
 }

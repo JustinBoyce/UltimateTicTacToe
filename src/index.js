@@ -155,7 +155,7 @@ class Game extends React.Component {
 
                 <button onClick={() => this.handleShowHideHistoryClick()}>Show/hide history</button>
                 <div className="game-info" style={this.state.historyStyle}>
-                    <div>{ status }</div>
+                    <div className="status">{ status }</div>
                     <ol>{ moves }</ol>
                 </div>
             </div>

@@ -13,14 +13,13 @@ import React from 'react';
     
 export default class Board extends React.Component {
     renderSquare(i) {
+        const value = this.props.squares[i];
+        const squareClass = `square ${value === 'X' ? 'square-x' : value === 'O' ? 'square-o' : ''}`;
+        
         return (
-            <button className="square" onClick={() => this.props.onClick(i)}>
-                {this.props.squares[i]}
+            <button className={squareClass} onClick={() => this.props.onClick(i)}>
+                {value}
             </button>
-            /* <Square 
-                value={this.props.squares[i]}
-                onClick={() => this.props.onClick(i)}
-            /> */
         );
     }
 
