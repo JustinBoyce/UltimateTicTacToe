@@ -3,7 +3,8 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import Board from './board.js';
 
-  
+// Convert to a FE-BE architecture
+// Implement a socket implementation to support multiplay
 class Game extends React.Component {
     constructor(props) {
         super(props);
