@@ -17,10 +17,6 @@ export default class Board extends React.Component {
             <button className="square" onClick={() => this.props.onClick(i)}>
                 {this.props.squares[i]}
             </button>
-            /* <Square 
-                value={this.props.squares[i]}
-                onClick={() => this.props.onClick(i)}
-            /> */
         );
     }
 

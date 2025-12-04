@@ -9,3 +9,14 @@ Every move you make changes where your opponent can make their next move. For ex
 Tied boxes count for each player.
 
 
+TODOs
+- Have a game integrated with the backend without bugs
+    - Figure out how to handle rooms
+        - How will the room be determined?
+    - The game logic needs to be integrated between the BE and FE
+        - BE needs to accept moves and return board states
+        - FE needs to send moves and accept board states
+- Have the ability to create a room and invite another player
+- Deploy the full game to be accessible by anyone
+
+
