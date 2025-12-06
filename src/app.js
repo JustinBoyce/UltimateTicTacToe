@@ -5,6 +5,12 @@ import Game from './game';
 function App() {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [gameHistory, setGameHistory] = useState([{
+    squares: Array.from(Array(9), () => new Array(9).fill(null)),
+    bigSquares: Array(9).fill(null),
+    availableBoard: 4
+  }]);
+  const [xIsNext, setXIsNext] = useState(true);
 
   useEffect(() => {
     // Connect when component mounts
@@ -24,13 +30,36 @@ function App() {
     // Listen for custom events
     socket.on('get_message', (data) => {
       setMessages(prev => [...prev, data]);
+      // Extract game state if present in message
+      if (data.state) {
+        if (data.state.history) {
+          setGameHistory(data.state.history);
+        }
+        if (data.state.xisNext !== undefined) {
+          setXIsNext(data.state.xisNext);
+        }
+      }
+    });
+
+    socket.on('move_made', (data) => {
+      setMessages(prev => [...prev, data]);
+      // Extract game state if present in message
+      if (data.state) {
+        if (data.state.history) {
+          setGameHistory(data.state.history);
+        }
+        if (data.state.xisNext !== undefined) {
+          setXIsNext(data.state.xisNext);
+        }
+      }
     });
 
     // Cleanup on unmount
     return () => {
       socket.off('connect');
       socket.off('disconnect');
-      socket.off('message');
+      socket.off('get_message');
+      socket.off('move_made');
       socket.disconnect();
     };
   }, []);
@@ -51,12 +80,12 @@ function App() {
         <h4>Incoming messages</h4>
         {messages.length === 0 && <p>No messages yet.</p>}
         {messages.map((message, idx) => (
-          <div key={idx}>{JSON.stringify(message)}</div>
+          <div key={idx}>{JSON.stringify(message, null, 2)}</div>
         ))}
       </div>
       <button onClick={() => sendMessage("test")}>Test Message</button>
 
-      <Game></Game>
+      <Game history={gameHistory} xIsNext={xIsNext}></Game>
     </div>
   );
 }
