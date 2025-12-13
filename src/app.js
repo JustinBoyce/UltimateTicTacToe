@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import socket from './service/socket';
 import Game from './game';
 
+// TODO: Test server logic to make sure game is running correctly
 function App() {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -36,12 +37,12 @@ function App() {
           setGameHistory(data.state.history);
         }
         if (data.state.xisNext !== undefined) {
-          setXIsNext(data.state.xisNext);
+          setXIsNext(data.state.xIsNext);
         }
       }
     });
 
-    socket.on('move_made', (data) => {
+    socket.on('state_update', (data) => {
       setMessages(prev => [...prev, data]);
       // Extract game state if present in message
       if (data.state) {
@@ -73,6 +74,10 @@ function App() {
     socket.emit('send_message', message);
   };
 
+  const resetBoard = () => {
+    socket.emit('reset_board', { room: "a" });
+  };
+
   return (
     <div>
       <p>Status: {isConnected ? 'Connected' : 'Disconnected'}</p>      
@@ -84,6 +89,7 @@ function App() {
         ))}
       </div>
       <button onClick={() => sendMessage("test")}>Test Message</button>
+      <button onClick={() => resetBoard()}>Reset Board</button>
 
       <Game history={gameHistory} xIsNext={xIsNext}></Game>
     </div>

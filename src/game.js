@@ -1,10 +1,11 @@
 
-import Board from './board.js';
-import React, { useState, useEffect } from 'react';
-import socket from './service/socket';
+import React, { useState, useRef, useMemo } from 'react';
+import GameBoard from './gameBoard';
+import GameInfo from './gameInfo';
 
-
-// TODO: Remove game logic and replace with sending/accepting messages to/from the BE
+// This component takes history and next player up as props from the backend. 
+// It calculates if the board has been won, tracks if the user is viewing a previous step
+// Passes needed data to GameBoard and GameInfo
 export default function Game({ 
     history = [{
         squares: Array.from(Array(9), () => new Array(9).fill(null)),
@@ -13,106 +14,61 @@ export default function Game({
     }], 
     xIsNext = true
 }) {
-    const [stepNumber, setStepNumber] = useState(0);
-    const [historyStyle, setHistoryStyle] = useState({display: "none"});
+    // Track the step number the user has manually navigated to
+    const [userStepNumber, setUserStepNumber] = useState(null);
+    // Track previous history length to detect when it grows
+    const prevHistoryLengthRef = useRef(history.length);
 
-    // Update stepNumber when prop changes
-    // Need this because a user should be able to navigate the history visually without changing the game for anyone else
-    useEffect(() => {
-        setStepNumber(history.length - 1);
-    }, [history.length]);
-
-    // Handle button clicks: i is the index of the square, j is the index of the board
-    const handleClick = (i, j) => {
-        socket.emit('move_made', { i, j, room: "a"});
-    };
-
-    const jumpTo = (step) => {
-        setStepNumber(step);
-        // Note: xIsNext is now controlled by props from App component
-    };
-
-    const handleShowHideHistoryClick = () => {
-        if (historyStyle.display === "none") {
-            setHistoryStyle({display: "inline"});
+    // Calculate effective stepNumber during render (always up-to-date)
+    const effectiveStepNumber = useMemo(() => {
+        const latestStep = history.length - 1;
+        const prevLength = prevHistoryLengthRef.current;
+        
+        // If history grew and user wasn't manually navigating, use latest
+        if (history.length > prevLength && userStepNumber === null) {
+            prevHistoryLengthRef.current = history.length;
+            return latestStep;
         }
-        else {
-            setHistoryStyle({display: "none"});
+        
+        // If user manually navigated, use their choice (clamped to valid range)
+        if (userStepNumber !== null) {
+            const validStep = Math.max(0, Math.min(userStepNumber, latestStep));
+            prevHistoryLengthRef.current = history.length;
+            return validStep;
         }
-    };
+        
+        // Default: use latest step
+        prevHistoryLengthRef.current = history.length;
+        return latestStep;
+    }, [history.length, userStepNumber]);
 
-    const renderBoard = (curr, j) => {
-        // Set flag if board is available to be played on
-        let boardActive = false;
-        // TODO: Add in case where board has already been completed
-        if (curr.availableBoard === j || curr.availableBoard === 4)
-            boardActive = true;
-
-        let displaySquares;
-        // If board is won, then display all squares as winning player
-        if (curr.bigSquares[j]) 
-            displaySquares = Array(9).fill(curr.bigSquares[j])
-        else 
-            displaySquares = curr.squares[j]
-
-        return (
-            <Board
-                squares={displaySquares}
-                onClick={(i) => handleClick(i, j)}
-                active={boardActive}
-            />
-        );
-    };
-
-    const current = history[stepNumber];
+    // Derive current state from effective stepNumber
+    const current = history[effectiveStepNumber];
     const winner = calculateWinner(current.bigSquares);
 
-    const moves = history.map((step, move) => {
-        const desc = move ?
-            'Go to move #' + move :
-            'Go to game start';
-        return (
-            <li key={move}>
-                <button onClick={() => jumpTo(move)}>{desc}</button>
-            </li>
-        )
-    });
-
-    let status;
-    if(winner) {
-        status = 'Winner: ' + winner;
-    }
-    else {
-        status = 'Next Player: ' + (xIsNext ? 'X' : 'O');
-    }
+    // Handle stepNumber changes from child component
+    const handleStepNumberChange = (newStepNumber) => {
+        setUserStepNumber(newStepNumber);
+    };
 
     return (
         <div className="game">
-            <div className="game-board">
-                <div className="grid">
-                    {renderBoard(current, 0)}
-                    {renderBoard(current, 1)}
-                    {renderBoard(current, 2)}
-                
-                    {renderBoard(current, 3)}
-                    {renderBoard(current, 4)}
-                    {renderBoard(current, 5)}
-                
-                    {renderBoard(current, 6)}
-                    {renderBoard(current, 7)}
-                    {renderBoard(current, 8)}
-                </div> 
-            </div>
-
-            <button onClick={() => handleShowHideHistoryClick()}>Show/hide history</button>
-            <div className="game-info" style={historyStyle}>
-                <div>{ status }</div>
-                <ol>{ moves }</ol>
-            </div>
+            <GameBoard 
+                current={current}
+                xIsNext={xIsNext}
+            />
+            <GameInfo 
+                history={history}
+                stepNumber={effectiveStepNumber}
+                xIsNext={xIsNext}
+                winner={winner}
+                onStepNumberChange={handleStepNumberChange}
+            />
         </div>
     );
 }
 
+// This function returns 'X' or 'O' if there is a winner, otherwise returns null
 function calculateWinner(squares) {
     const lines = [
         [0, 1, 2],
@@ -125,7 +81,6 @@ function calculateWinner(squares) {
         [2, 4, 6],
     ];
     // Tied squares work for both teams
-    // TODO: try to refactor and improve this code
     for (let player of ['X', 'O']) {
         let fixedSquares = squares.slice();
         for (let k = 0; k < fixedSquares.length; k++) {
