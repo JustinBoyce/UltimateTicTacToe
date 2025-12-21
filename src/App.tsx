@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import socket from './service/socket';
-import Game from './game';
+import Game from './Game';
+import { SocketStateUpdateMessage, BoardState } from './types';
 
 // TODO: Test server logic to make sure game is running correctly
 function App() {
-  const [messages, setMessages] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [gameHistory, setGameHistory] = useState([{
+  const [messages, setMessages] = useState<SocketStateUpdateMessage[]>([]);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [gameHistory, setGameHistory] = useState<BoardState[]>([{
     squares: Array.from(Array(9), () => new Array(9).fill(null)),
     bigSquares: Array(9).fill(null),
-    availableBoard: 4
+    availableBoard: 4,
+    xIsNext: true
   }]);
-  const [xIsNext, setXIsNext] = useState(true);
 
   useEffect(() => {
     // Connect when component mounts
@@ -29,15 +30,12 @@ function App() {
     });
 
     // Listen for custom events
-    socket.on('state_update', (data) => {
+    socket.on('state_update', (data: SocketStateUpdateMessage) => {
       setMessages(prev => [...prev, data]);
       // Extract game state if present in message
       if (data.state) {
         if (data.state.history) {
           setGameHistory(data.state.history);
-        }
-        if (data.state.xisNext !== undefined) {
-          setXIsNext(data.state.xisNext);
         }
       }
     });
@@ -52,7 +50,7 @@ function App() {
     };
   }, []);
 
-  const sendMessage = (text) => {
+  const sendMessage = (text: string): void => {
     console.log(text);
     const message = {
         message : text,
@@ -61,7 +59,7 @@ function App() {
     socket.emit('send_message', message);
   };
 
-  const resetBoard = () => {
+  const resetBoard = (): void => {
     socket.emit('reset_board', { room: "a" });
   };
 
@@ -72,7 +70,7 @@ function App() {
       <button onClick={() => sendMessage("test")}>Test Message</button>
       <button onClick={() => resetBoard()}>Reset Board</button>
 
-      <Game history={gameHistory} xIsNext={xIsNext}></Game>
+      <Game history={gameHistory}></Game>
 
       <div className="message-log">
         <h4>Incoming messages</h4>
@@ -86,3 +84,4 @@ function App() {
 }
 
 export default App;
+

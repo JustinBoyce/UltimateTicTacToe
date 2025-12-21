@@ -1,8 +1,15 @@
 // This file defines a single board and its squares
 import React from 'react';
+import { SquareValue } from './types';
+
+interface BoardProps {
+  squares: SquareValue[];
+  onClick: (i: number) => void;
+  active: boolean;
+}
     
-export default function Board({ squares, onClick, active }) {
-    const renderSquare = (i) => {
+export default function Board({ squares, onClick, active }: BoardProps) {
+    const renderSquare = (i: number) => {
         return (
             <button className="square" onClick={() => onClick(i)}>
                 {squares[i]}
@@ -10,14 +17,14 @@ export default function Board({ squares, onClick, active }) {
         );
     };
 
-    let styles = {
+    let styles: React.CSSProperties = {
         border: '4px solid #000'
     };
     // If the board is active then outline in red
     if (active) {
         styles = {
             border: '4px solid rgb(200, 0, 0)'
-        }
+        };
     }
     
     return (
@@ -40,3 +47,4 @@ export default function Board({ squares, onClick, active }) {
         </div>
     );
 }
+

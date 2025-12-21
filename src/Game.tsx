@@ -1,8 +1,12 @@
+import { useState, useMemo } from 'react';
+import GameBoard from './GameBoard';
+import GameInfo from './GameInfo';
+import socket from './service/socket';
+import { BoardState, SquareValue } from './types';
 
-import React, { useState, useRef, useMemo } from 'react';
-import GameBoard from './gameBoard';
-import GameInfo from './gameInfo';
-import socket from './service/socket.js';
+interface GameProps {
+  history?: BoardState[];
+}
 
 // This component takes history and next player up as props from the backend. 
 // It calculates if the board has been won, tracks if the user is viewing a previous step
@@ -11,12 +15,12 @@ export default function Game({
     history = [{
         squares: Array.from(Array(9), () => new Array(9).fill(null)),
         bigSquares: Array(9).fill(null),
-        availableBoard: 4
-    }], 
-    xIsNext = true
-}) {
+        availableBoard: 4,
+        xIsNext: true
+    }]
+}: GameProps) {
     // Track the step number the user has manually navigated to
-    const [userStepNumber, setUserStepNumber] = useState(null);
+    const [userStepNumber, setUserStepNumber] = useState<number | null>(null);
 
     const effectiveStepNumber = useMemo(() => {
         return calculateEffectiveStepNumber(history.length, userStepNumber);
@@ -25,9 +29,10 @@ export default function Game({
     // Derive current view from effective stepNumber
     const currentViewedBoard = history[effectiveStepNumber];
     const winner = calculateWinner(currentViewedBoard.bigSquares);
+    const xIsNext = currentViewedBoard.xIsNext;
 
     // Handle stepNumber changes from child component
-    const handleStepNumberChange = (newStepNumber) => {
+    const handleStepNumberChange = (newStepNumber: number): void => {
         // If the user moves back to the most recent step then go back to updating every time there is new history
         if (newStepNumber === history.length - 1) {
             setUserStepNumber(null);
@@ -38,7 +43,7 @@ export default function Game({
 
     // Handle button clicks: i is the index of the square, j is the index of the board
     // Only allow moves if we are on the last stepNumber
-    const handleBoardGameClick = (i, j) => {
+    const handleBoardGameClick = (i: number, j: number): void => {
         const lastStepNumber = history.length - 1;
         if (effectiveStepNumber === lastStepNumber) {
             socket.emit('move_made', { i, j, room: "a"});
@@ -64,7 +69,7 @@ export default function Game({
 }
 
 // Calculate effective stepNumber during render (always up-to-date)
-const calculateEffectiveStepNumber = (historyLength, userStepNumber) => {
+const calculateEffectiveStepNumber = (historyLength: number, userStepNumber: number | null): number => {
     const latestStep = historyLength - 1;
     
     // If user manually navigated, use their choice (clamped to valid range)
@@ -78,7 +83,7 @@ const calculateEffectiveStepNumber = (historyLength, userStepNumber) => {
 };
 
 // This function returns 'X' or 'O' if there is a winner, otherwise returns null
-function calculateWinner(squares) {
+function calculateWinner(squares: SquareValue[]): SquareValue {
     const lines = [
         [0, 1, 2],
         [3, 4, 5],
@@ -90,7 +95,7 @@ function calculateWinner(squares) {
         [2, 4, 6],
     ];
     // Tied squares work for both teams
-    for (let player of ['X', 'O']) {
+    for (let player of ['X', 'O'] as const) {
         let fixedSquares = squares.slice();
         for (let k = 0; k < fixedSquares.length; k++) {
             if (fixedSquares[k] === '/')
@@ -106,3 +111,4 @@ function calculateWinner(squares) {
     
     return null;
 }
+
