@@ -2,6 +2,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import GameBoard from './gameBoard';
 import GameInfo from './gameInfo';
+import socket from './service/socket.js';
 
 // This component takes history and next player up as props from the backend. 
 // It calculates if the board has been won, tracks if the user is viewing a previous step
@@ -16,46 +17,40 @@ export default function Game({
 }) {
     // Track the step number the user has manually navigated to
     const [userStepNumber, setUserStepNumber] = useState(null);
-    // Track previous history length to detect when it grows
-    const prevHistoryLengthRef = useRef(history.length);
 
-    // Calculate effective stepNumber during render (always up-to-date)
     const effectiveStepNumber = useMemo(() => {
-        const latestStep = history.length - 1;
-        const prevLength = prevHistoryLengthRef.current;
-        
-        // If history grew and user wasn't manually navigating, use latest
-        if (history.length > prevLength && userStepNumber === null) {
-            prevHistoryLengthRef.current = history.length;
-            return latestStep;
-        }
-        
-        // If user manually navigated, use their choice (clamped to valid range)
-        if (userStepNumber !== null) {
-            const validStep = Math.max(0, Math.min(userStepNumber, latestStep));
-            prevHistoryLengthRef.current = history.length;
-            return validStep;
-        }
-        
-        // Default: use latest step
-        prevHistoryLengthRef.current = history.length;
-        return latestStep;
+        return calculateEffectiveStepNumber(history.length, userStepNumber);
     }, [history.length, userStepNumber]);
 
-    // Derive current state from effective stepNumber
-    const current = history[effectiveStepNumber];
-    const winner = calculateWinner(current.bigSquares);
+    // Derive current view from effective stepNumber
+    const currentViewedBoard = history[effectiveStepNumber];
+    const winner = calculateWinner(currentViewedBoard.bigSquares);
 
     // Handle stepNumber changes from child component
     const handleStepNumberChange = (newStepNumber) => {
-        setUserStepNumber(newStepNumber);
+        // If the user moves back to the most recent step then go back to updating every time there is new history
+        if (newStepNumber === history.length - 1) {
+            setUserStepNumber(null);
+        } else {
+            setUserStepNumber(newStepNumber);
+        }
+    };
+
+    // Handle button clicks: i is the index of the square, j is the index of the board
+    // Only allow moves if we are on the last stepNumber
+    const handleBoardGameClick = (i, j) => {
+        const lastStepNumber = history.length - 1;
+        if (effectiveStepNumber === lastStepNumber) {
+            socket.emit('move_made', { i, j, room: "a"});
+        }
     };
 
     return (
         <div className="game">
             <GameBoard 
-                current={current}
+                current={currentViewedBoard}
                 xIsNext={xIsNext}
+                onBoardGameClick={handleBoardGameClick}
             />
             <GameInfo 
                 history={history}
@@ -67,6 +62,20 @@ export default function Game({
         </div>
     );
 }
+
+// Calculate effective stepNumber during render (always up-to-date)
+const calculateEffectiveStepNumber = (historyLength, userStepNumber) => {
+    const latestStep = historyLength - 1;
+    
+    // If user manually navigated, use their choice (clamped to valid range)
+    if (userStepNumber !== null) {
+        const validStep = Math.max(0, Math.min(userStepNumber, latestStep));
+        return validStep;
+    }
+    
+    // Default: use latest step
+    return latestStep;
+};
 
 // This function returns 'X' or 'O' if there is a winner, otherwise returns null
 function calculateWinner(squares) {
@@ -96,13 +105,4 @@ function calculateWinner(squares) {
     }
     
     return null;
-}
-
-function isTied(squares) {
-    for(let k = 0; k < squares.length; k++) {
-        // if a square has not been assigned a value, there is no tie
-        if (!squares[k])
-            return false;
-    }
-    return true;
 }

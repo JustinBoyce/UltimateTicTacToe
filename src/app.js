@@ -29,19 +29,6 @@ function App() {
     });
 
     // Listen for custom events
-    socket.on('get_message', (data) => {
-      setMessages(prev => [...prev, data]);
-      // Extract game state if present in message
-      if (data.state) {
-        if (data.state.history) {
-          setGameHistory(data.state.history);
-        }
-        if (data.state.xisNext !== undefined) {
-          setXIsNext(data.state.xIsNext);
-        }
-      }
-    });
-
     socket.on('state_update', (data) => {
       setMessages(prev => [...prev, data]);
       // Extract game state if present in message
@@ -81,17 +68,19 @@ function App() {
   return (
     <div>
       <p>Status: {isConnected ? 'Connected' : 'Disconnected'}</p>      
-      <div className="message-log">
-        <h4>Incoming messages</h4>
-        {messages.length === 0 && <p>No messages yet.</p>}
-        {messages.map((message, idx) => (
-          <div key={idx}>{JSON.stringify(message, null, 2)}</div>
-        ))}
-      </div>
+      
       <button onClick={() => sendMessage("test")}>Test Message</button>
       <button onClick={() => resetBoard()}>Reset Board</button>
 
       <Game history={gameHistory} xIsNext={xIsNext}></Game>
+
+      <div className="message-log">
+        <h4>Incoming messages</h4>
+        {messages.length === 0 && <p>No messages yet.</p>}
+        {messages.map((message, idx) => (
+          <div key={idx}>{"Step " + idx.toString() +  JSON.stringify(message, null, 2)}</div>
+        ))}
+      </div>
     </div>
   );
 }
