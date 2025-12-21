@@ -1,6 +1,5 @@
+import { BoardState, SquareValue } from '../types';
 import Board from './Board';
-import React from 'react';
-import { BoardState, SquareValue } from './types';
 
 interface GameBoardProps {
   current: BoardState;
@@ -10,7 +9,7 @@ interface GameBoardProps {
 
 // This component manages displaying the full game board and handles moves being made
 // TODO: Prevent players from playing a move when it is not their turn
-function GameBoard({ current, xIsNext, onBoardGameClick }: GameBoardProps) {
+function GameBoard({ current, onBoardGameClick }: GameBoardProps) {
     
     const renderBoard = (curr: BoardState, j: number) => {
         // Set flag if board is available to be played on

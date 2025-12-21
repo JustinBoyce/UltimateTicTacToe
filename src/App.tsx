@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import socket from './service/socket';
-import Game from './Game';
+import Game from './game/Game';
 import { SocketStateUpdateMessage, BoardState } from './types';
 
 // TODO: Test server logic to make sure game is running correctly

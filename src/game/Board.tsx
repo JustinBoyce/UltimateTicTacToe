@@ -1,6 +1,6 @@
 // This file defines a single board and its squares
 import React from 'react';
-import { SquareValue } from './types';
+import { SquareValue } from '../types';
 
 interface BoardProps {
   squares: SquareValue[];

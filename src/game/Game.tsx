@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import GameBoard from './GameBoard';
+import socket from '../service/socket';
+import { BoardState, SquareValue } from '../types';
 import GameInfo from './GameInfo';
-import socket from './service/socket';
-import { BoardState, SquareValue } from './types';
+import GameBoard from './GameBoard';
 
 interface GameProps {
   history?: BoardState[];
@@ -59,7 +59,6 @@ export default function Game({
             />
             <GameInfo 
                 history={history}
-                stepNumber={effectiveStepNumber}
                 xIsNext={xIsNext}
                 winner={winner}
                 onStepNumberChange={handleStepNumberChange}
