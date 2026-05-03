@@ -22,12 +22,9 @@ function GameInfo({ history, xIsNext, winner, onStepNumberChange, playerRole }: 
     };
 
     const handleShowHideHistoryClick = (): void => {
-        if (historyStyle.display === "none") {
-            setHistoryStyle({display: "inline"});
-        }
-        else {
-            setHistoryStyle({display: "none"});
-        }
+        setHistoryStyle((prev) =>
+            prev.display === "none" ? { display: "block" } : { display: "none" }
+        );
     };
 
     const moves = history.map((_, move) => {
@@ -60,13 +57,15 @@ function GameInfo({ history, xIsNext, winner, onStepNumberChange, playerRole }: 
     }
 
     return (
-        <>
-            <button onClick={() => handleShowHideHistoryClick()}>Show/hide history</button>
+        <div className="game-info-panel">
+            <div className="status">{status}</div>
+            <button type="button" onClick={() => handleShowHideHistoryClick()}>
+                Show/hide history
+            </button>
             <div className="game-info" style={historyStyle}>
-                <div className="status">{ status }</div>
-                <ol>{ moves }</ol>
+                <ol>{moves}</ol>
             </div>
-        </>
+        </div>
     );
 }
 
