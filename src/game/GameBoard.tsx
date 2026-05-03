@@ -5,18 +5,22 @@ interface GameBoardProps {
   current: BoardState;
   xIsNext: boolean;
   onBoardGameClick: (i: number, j: number) => void;
+  canMakeMove: boolean;
 }
 
 // This component manages displaying the full game board and handles moves being made
-// TODO: Prevent players from playing a move when it is not their turn
-function GameBoard({ current, onBoardGameClick }: GameBoardProps) {
+function GameBoard({ current, onBoardGameClick, canMakeMove }: GameBoardProps) {
     
     const renderBoard = (curr: BoardState, j: number) => {
         // Set flag if board is available to be played on
         let boardActive = false;
-        // TODO: Add in case where board has already been completed
-        if (curr.availableBoard === j || curr.availableBoard === 4)
-            boardActive = true;
+        // Board is active if it's the available board and player can make moves
+        if (canMakeMove && (curr.availableBoard === j || curr.availableBoard === 4)) {
+            // Also check if board is not already won or tied
+            if (!curr.bigSquares[j]) {
+                boardActive = true;
+            }
+        }
 
         let displaySquares: SquareValue[];
         // If board is won, then display all squares as winning player
@@ -31,6 +35,7 @@ function GameBoard({ current, onBoardGameClick }: GameBoardProps) {
                 squares={displaySquares}
                 onClick={(i) => onBoardGameClick(i, j)}
                 active={boardActive}
+                disabled={!canMakeMove}
             />
         );
     };

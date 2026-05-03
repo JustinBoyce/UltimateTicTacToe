@@ -6,23 +6,33 @@ interface BoardProps {
   squares: SquareValue[];
   onClick: (i: number) => void;
   active: boolean;
+  disabled?: boolean;
 }
     
-export default function Board({ squares, onClick, active }: BoardProps) {
+export default function Board({ squares, onClick, active, disabled }: BoardProps) {
     const renderSquare = (i: number) => {
+        const isSquareEmpty = !squares[i];
+        const isClickable = active && isSquareEmpty && !disabled;
+        
         return (
-            <button className="square" onClick={() => onClick(i)}>
+            <button 
+                className={`square ${isClickable ? 'clickable' : ''} ${disabled ? 'disabled' : ''}`}
+                onClick={() => isClickable && onClick(i)}
+                disabled={!isClickable}
+            >
                 {squares[i]}
             </button>
         );
     };
 
     let styles: React.CSSProperties = {
-        border: '4px solid #000'
+        border: '4px solid #000',
+        opacity: disabled ? 0.6 : 1
     };
     // If the board is active then outline in red
     if (active) {
         styles = {
+            ...styles,
             border: '4px solid rgb(200, 0, 0)'
         };
     }

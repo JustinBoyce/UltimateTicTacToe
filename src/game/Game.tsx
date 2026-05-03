@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
-import socket from '../service/socket';
-import { BoardState, SquareValue } from '../types';
+import getSocket from '../service/socket';
+import { BoardState, SquareValue, PlayerRole, MoveMadePayload } from '../types';
 import GameInfo from './GameInfo';
 import GameBoard from './GameBoard';
 
 interface GameProps {
   history?: BoardState[];
+  playerRole: PlayerRole;
+  currentRoom: string;
 }
 
 // This component takes history and next player up as props from the backend. 
@@ -17,8 +19,12 @@ export default function Game({
         bigSquares: Array(9).fill(null),
         availableBoard: 4,
         xIsNext: true
-    }]
+    }],
+    playerRole,
+    currentRoom
 }: GameProps) {
+    // TODO: Review if this non-singleton socket has any unexpected behavior
+    const socket = getSocket();
     // Track the step number the user has manually navigated to
     const [userStepNumber, setUserStepNumber] = useState<number | null>(null);
 
@@ -31,6 +37,10 @@ export default function Game({
     const winner = calculateWinner(currentViewedBoard.bigSquares);
     const xIsNext = currentViewedBoard.xIsNext;
 
+    // Check if it's the player's turn
+    const isPlayerTurn = playerRole === 'X' ? xIsNext : !xIsNext;
+    const canMakeMove = isPlayerTurn && !winner;
+
     // Handle stepNumber changes from child component
     const handleStepNumberChange = (newStepNumber: number): void => {
         // If the user moves back to the most recent step then go back to updating every time there is new history
@@ -42,26 +52,39 @@ export default function Game({
     };
 
     // Handle button clicks: i is the index of the square, j is the index of the board
-    // Only allow moves if we are on the last stepNumber
+    // Only allow moves if we are on the last stepNumber and it's the player's turn
     const handleBoardGameClick = (i: number, j: number): void => {
         const lastStepNumber = history.length - 1;
-        if (effectiveStepNumber === lastStepNumber) {
-            socket.emit('move_made', { i, j, room: "a"});
+        if (effectiveStepNumber === lastStepNumber && canMakeMove) {
+            const payload: MoveMadePayload = {
+                type: 'CLIENT',
+                room: currentRoom,
+                i,
+                j
+            };
+            socket.emit('move_made', payload);
         }
     };
 
     return (
         <div className="game">
+            {!canMakeMove && !winner && (
+                <div className="turn-indicator">
+                    Waiting for opponent's turn...
+                </div>
+            )}
             <GameBoard 
                 current={currentViewedBoard}
                 xIsNext={xIsNext}
                 onBoardGameClick={handleBoardGameClick}
+                canMakeMove={canMakeMove}
             />
             <GameInfo 
                 history={history}
                 xIsNext={xIsNext}
                 winner={winner}
                 onStepNumberChange={handleStepNumberChange}
+                playerRole={playerRole}
             />
         </div>
     );

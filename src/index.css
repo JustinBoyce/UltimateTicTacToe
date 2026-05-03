@@ -131,3 +131,259 @@ li button:hover {
 .square:contains('O') {
     color: #3498db;
 }
+
+/* App Container */
+.app-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.app-header {
+    margin-bottom: 20px;
+}
+
+.status-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    margin-bottom: 10px;
+}
+
+.status-indicator {
+    font-size: 12px;
+}
+
+.status-indicator.connected {
+    color: #27ae60;
+}
+
+.status-indicator.disconnected {
+    color: #e74c3c;
+}
+
+.status-text {
+    flex: 1;
+    font-weight: 500;
+}
+
+.player-role {
+    padding: 4px 12px;
+    background: #3498db;
+    color: white;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.error-message {
+    padding: 12px;
+    background: #fee;
+    border: 1px solid #fcc;
+    border-radius: 6px;
+    color: #c33;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
+
+/* Room Manager */
+.room-manager {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.room-manager h2 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+.room-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.room-input {
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 16px;
+    transition: border-color 0.2s ease;
+}
+
+.room-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.room-input:disabled {
+    background: #f5f5f5;
+    cursor: not-allowed;
+}
+
+.room-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.room-button {
+    flex: 1;
+}
+
+.room-button:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+}
+
+/* Game Container */
+.game-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.game-controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.reset-button {
+    background: #e74c3c;
+}
+
+.reset-button:hover {
+    background: #c0392b;
+}
+
+.leave-room-button {
+    background: #95a5a6;
+    margin-top: 10px;
+}
+
+.leave-room-button:hover {
+    background: #7f8c8d;
+}
+
+.turn-indicator {
+    padding: 10px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 6px;
+    text-align: center;
+    color: #856404;
+    font-weight: 500;
+}
+
+.reconnect-prompt {
+    padding: 15px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.reconnect-prompt p {
+    margin: 0 0 10px 0;
+    color: #856404;
+}
+
+/* Chat */
+.chat-container {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    max-height: 400px;
+}
+
+.chat-container h3 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 200px;
+    max-height: 300px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.chat-empty {
+    color: #95a5a6;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.chat-message {
+    margin-bottom: 8px;
+    padding: 8px;
+    background: white;
+    border-radius: 4px;
+}
+
+.chat-message-text {
+    color: #2c3e50;
+}
+
+.chat-input-group {
+    display: flex;
+    gap: 10px;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.chat-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.chat-input:disabled {
+    background: #f5f5f5;
+    cursor: not-allowed;
+}
+
+.chat-send-button {
+    padding: 10px 20px;
+}
+
+.chat-send-button:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+}
+
+/* Square states */
+.square.clickable {
+    cursor: pointer;
+}
+
+.square.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.square:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
