@@ -3,6 +3,7 @@ import getSocket from './service/socket';
 import Game from './game/Game';
 import RoomManager from './components/RoomManager';
 import Chat from './components/Chat';
+import GameControls from './components/GameControls';
 import { 
   BoardState, 
   RoomMessage, 
@@ -10,6 +11,7 @@ import {
   Message,
   CreateRoomPayload,
   JoinRoomPayload,
+  SetAlmostWonPayload,
   SendMessagePayload,
   PlayerRole,
   RoomStatus
@@ -183,6 +185,17 @@ function App() {
     }
   }, [socket, currentRoom]);
 
+  const handleSetAlmostWon = useCallback(() => {
+    if (currentRoom) {
+      const payload: SetAlmostWonPayload = {
+        type: 'CLIENT',
+        room: currentRoom,
+        message: 'Set almost won test state'
+      };
+      socket.emit('set_almost_won', payload);
+    }
+  }, [socket, currentRoom]);
+
   const isInGame = roomStatus === 'IN_PROGRESS';
   const isWaiting = roomStatus === 'WAITING_FOR_PLAYER' || roomStatus === 'WAITING_RECONNECT';
 
@@ -222,11 +235,10 @@ function App() {
           
           {isInGame && (
             <>
-              <div className="game-controls">
-                <button onClick={handleResetBoard} className="reset-button">
-                  Reset Board
-                </button>
-              </div>
+              <GameControls
+                onResetBoard={handleResetBoard}
+                onSetAlmostWon={handleSetAlmostWon}
+              />
               <Game 
                 history={gameHistory}
                 playerRole={playerRole}

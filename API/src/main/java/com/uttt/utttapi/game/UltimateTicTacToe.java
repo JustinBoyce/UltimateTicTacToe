@@ -1,6 +1,7 @@
 package com.uttt.utttapi.game;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -15,6 +16,16 @@ public class UltimateTicTacToe {
     }
 
     public State getState() {
+        return this.state;
+    }
+
+    public State setAlmostWonTestState() {
+        BoardState presetState = new BoardState();
+        presetState.setSquares(buildAlmostWonSquares());
+        presetState.setBigSquares(new ArrayList<>(Arrays.asList(null, null, null, "X", null, "O", "X", null, "O")));
+        presetState.setAvailableBoard(4);
+        presetState.setXIsNext(false);
+        this.state.setHistory(new ArrayList<>(List.of(presetState)));
         return this.state;
     }
 
@@ -86,6 +97,20 @@ public class UltimateTicTacToe {
         initialState.setXIsNext(true);
         initialHistory.add(initialState);
         return initialHistory;
+    }
+
+    private List<List<String>> buildAlmostWonSquares() {
+        List<List<String>> squares = new ArrayList<>();
+        squares.add(new ArrayList<>(Arrays.asList("X", null, null, null, "X", null, null, null, null)));
+        squares.add(new ArrayList<>(Collections.nCopies(9, null)));
+        squares.add(new ArrayList<>(Arrays.asList(null, null, null, null, "O", null, "O", null, null)));
+        squares.add(new ArrayList<>(Arrays.asList(null, null, null, "X", "X", "X", null, null, null)));
+        squares.add(new ArrayList<>(Collections.nCopies(9, null)));
+        squares.add(new ArrayList<>(Arrays.asList(null, null, null, "O", "O", "O", null, null, null)));
+        squares.add(new ArrayList<>(Arrays.asList(null, null, "X", null, "X", null, "X", null, null)));
+        squares.add(new ArrayList<>(Collections.nCopies(9, null)));
+        squares.add(new ArrayList<>(Arrays.asList("O", null, null, null, "O", null, null, null, "O")));
+        return squares;
     }
 
     // Passes in a list of squares and returns the string "X" or "O" if there is a winner and null if there is no winner

@@ -71,6 +71,12 @@ export interface ResetBoardPayload {
   message?: string;
 }
 
+export interface SetAlmostWonPayload {
+  type: 'CLIENT';
+  room: string;
+  message?: string;
+}
+
 export interface SendMessagePayload {
   type: 'CLIENT';
   room: string;

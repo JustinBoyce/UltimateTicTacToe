@@ -132,4 +132,41 @@ public class SocketService {
         }
     }
 
+    public void setAlmostWon(String room, SocketIOClient senderClient) {
+        log.info("Setting almost won test state in room {}", room);
+
+        Room roomObj = roomService.getRoom(room);
+        if (roomObj == null) {
+            log.warn("Room {} does not exist", room);
+            senderClient.sendEvent("error", new Message(MessageType.SERVER, "Room does not exist"));
+            return;
+        }
+
+        if (!roomObj.containsPlayer(senderClient)) {
+            log.warn("Player {} is not in room {}", senderClient.getSessionId(), room);
+            senderClient.sendEvent("error", new Message(MessageType.SERVER, "You are not in this room"));
+            return;
+        }
+
+        if (roomObj.getStatus() != com.uttt.utttapi.room.RoomStatus.IN_PROGRESS) {
+            log.warn("Room {} is not in progress. Status: {}", room, roomObj.getStatus());
+            senderClient.sendEvent("error", new Message(MessageType.SERVER, "Game is not in progress"));
+            return;
+        }
+
+        UltimateTicTacToe game = roomObj.getGame();
+        if (game == null) {
+            log.error("Game instance not found for room {}", room);
+            senderClient.sendEvent("error", new Message(MessageType.SERVER, "Game instance not found"));
+            return;
+        }
+
+        State nearWinState = game.setAlmostWonTestState();
+        roomObj.updateActivity();
+
+        for (SocketIOClient client : server.getRoomOperations(room).getClients()) {
+            client.sendEvent("state_update", new StateMessage(nearWinState));
+        }
+    }
+
 }

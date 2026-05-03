@@ -264,6 +264,14 @@ li button:hover {
     background: #c0392b;
 }
 
+.test-state-button {
+    background: #3498db;
+}
+
+.test-state-button:hover {
+    background: #2980b9;
+}
+
 .leave-room-button {
     background: #95a5a6;
     margin-top: 10px;
