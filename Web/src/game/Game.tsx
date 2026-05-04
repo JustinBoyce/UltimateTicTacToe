@@ -1,13 +1,21 @@
 import { useState, useMemo } from 'react';
 import getSocket from '../service/socket';
-import { BoardState, SquareValue, PlayerRole, MoveMadePayload } from '../types';
+import { BoardState, PlayerRole, MoveMadePayload } from '../types';
 import GameInfo from './GameInfo';
 import GameBoard from './GameBoard';
+import PostGameActions from './PostGameActions';
+import {
+  calculateMetaWinner,
+  isMetaDraw,
+  isGameTerminal,
+} from './gameUtils';
 
 interface GameProps {
   history?: BoardState[];
   playerRole: PlayerRole;
   currentRoom: string;
+  onPlayAgain: () => void;
+  onBackToLobby: () => void;
 }
 
 // This component takes history and next player up as props from the backend. 
@@ -21,7 +29,9 @@ export default function Game({
         xIsNext: true
     }],
     playerRole,
-    currentRoom
+    currentRoom,
+    onPlayAgain,
+    onBackToLobby,
 }: GameProps) {
     // TODO: Review if this non-singleton socket has any unexpected behavior
     const socket = getSocket();
@@ -34,8 +44,13 @@ export default function Game({
 
     // Derive current view from effective stepNumber
     const currentViewedBoard = history[effectiveStepNumber];
-    const winner = calculateWinner(currentViewedBoard.bigSquares);
+    const winner = calculateMetaWinner(currentViewedBoard.bigSquares);
+    const isDraw = !winner && isMetaDraw(currentViewedBoard.bigSquares);
     const xIsNext = currentViewedBoard.xIsNext;
+
+    const lastBoard = history[history.length - 1];
+    const terminalAtEnd = isGameTerminal(lastBoard);
+    const atLatestStep = effectiveStepNumber === history.length - 1;
 
     // Check if it's the player's turn
     const isPlayerTurn = playerRole === 'X' ? xIsNext : !xIsNext;
@@ -68,7 +83,7 @@ export default function Game({
 
     return (
         <div className="game">
-            {!canMakeMove && !winner && (
+            {!canMakeMove && !winner && !isDraw && (
                 <div className="turn-indicator">
                     Waiting for opponent's turn...
                 </div>
@@ -83,9 +98,16 @@ export default function Game({
                 history={history}
                 xIsNext={xIsNext}
                 winner={winner}
+                isDraw={isDraw}
                 onStepNumberChange={handleStepNumberChange}
                 playerRole={playerRole}
             />
+            {terminalAtEnd && atLatestStep && (
+                <PostGameActions
+                    onPlayAgain={onPlayAgain}
+                    onBackToLobby={onBackToLobby}
+                />
+            )}
         </div>
     );
 }
@@ -103,34 +125,4 @@ const calculateEffectiveStepNumber = (historyLength: number, userStepNumber: num
     // Default: use latest step
     return latestStep;
 };
-
-// This function returns 'X' or 'O' if there is a winner, otherwise returns null
-function calculateWinner(squares: SquareValue[]): SquareValue {
-    const lines = [
-        [0, 1, 2],
-        [3, 4, 5],
-        [6, 7, 8],
-        [0, 3, 6],
-        [1, 4, 7],
-        [2, 5, 8],
-        [0, 4, 8],
-        [2, 4, 6],
-    ];
-    // Tied squares work for both teams
-    for (let player of ['X', 'O'] as const) {
-        let fixedSquares = squares.slice();
-        for (let k = 0; k < fixedSquares.length; k++) {
-            if (fixedSquares[k] === '/')
-                fixedSquares[k] = player;
-        }
-        for (let i = 0; i < lines.length; i++) {
-            const [a, b, c] = lines[i];
-            if (fixedSquares[a] && fixedSquares[a] === fixedSquares[b] && fixedSquares[a] === fixedSquares[c]) {
-                return fixedSquares[a];
-            }
-        }
-    }
-    
-    return null;
-}
 

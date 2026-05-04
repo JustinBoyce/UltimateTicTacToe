@@ -83,3 +83,15 @@ export interface SendMessagePayload {
   message: string;
 }
 
+export type RoomClosedReason = 'opponent_left' | 'self_left';
+
+export interface RoomClosedMessage extends Message {
+  reason: RoomClosedReason;
+}
+
+export interface LeaveRoomPayload {
+  type: 'CLIENT';
+  room: string;
+  message?: string;
+}
+

@@ -239,6 +239,43 @@ socket.emit('reset_board', {
 
 ---
 
+### `leave_room`
+Voluntarily leave the current game room. The server **dissolves the entire room** (Simpler v1): both players are removed from the Socket.IO room, the room is deleted, and any remaining player is notified.
+
+**Payload:**
+```typescript
+{
+  type: "CLIENT",
+  room: string,
+  message?: string
+}
+```
+
+**Response Events:**
+- `room_closed` (RoomClosedMessage) — sent to the leaving client with `reason: "self_left"`, and to the other client (if any) with `reason: "opponent_left"`. Both include `message` (human-readable) and `room`.
+- `error` (Message) — e.g. not in a room or stale mapping.
+
+**RoomClosedMessage:**
+```typescript
+{
+  type: MessageType;
+  message: string;
+  room: string;
+  reason: "opponent_left" | "self_left";
+}
+```
+
+**Example:**
+```javascript
+socket.emit('leave_room', {
+  type: 'CLIENT',
+  room: 'room-123',
+  message: 'leave',
+});
+```
+
+---
+
 ### `send_message`
 Sends a chat message to other players in the room.
 
@@ -603,6 +640,7 @@ socket.on('error', (data) => {
 3. Game Starts → game_started + state_update
 4. Play Game → move_made → state_update
 5. (Optional) Reset → reset_board → state_update
+5b. Leave / post-game lobby → leave_room → room_closed (self_left / opponent_left); room dissolved
 6. Disconnect → player_disconnected (to opponent)
 7. Reconnect → reconnect_to_room → player_reconnected + state_update
 8. Timeout (if no reconnect) → room_timeout → ENDED

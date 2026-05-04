@@ -4,6 +4,7 @@ import Game from './game/Game';
 import RoomManager from './components/RoomManager';
 import Chat from './components/Chat';
 import GameControls from './components/GameControls';
+import { isGameTerminal } from './game/gameUtils';
 import { 
   BoardState, 
   RoomMessage, 
@@ -14,8 +15,21 @@ import {
   SetAlmostWonPayload,
   SendMessagePayload,
   PlayerRole,
-  RoomStatus
+  RoomStatus,
+  RoomClosedMessage,
+  LeaveRoomPayload,
 } from './types';
+
+function createInitialGameHistory(): BoardState[] {
+  return [
+    {
+      squares: Array.from(Array(9), () => new Array(9).fill(null)),
+      bigSquares: Array(9).fill(null),
+      availableBoard: 4,
+      xIsNext: true,
+    },
+  ];
+}
 
 // TODO: Refactor to potentially get rid of some of this state in the App component
 //       Probably need a separate component for handling all of the socket events
@@ -25,17 +39,28 @@ function App() {
   const [currentRoom, setCurrentRoom] = useState<string | null>(null);
   const [playerRole, setPlayerRole] = useState<PlayerRole>(null);
   const [roomStatus, setRoomStatus] = useState<RoomStatus | null>(null);
-  const [gameHistory, setGameHistory] = useState<BoardState[]>([{
-    squares: Array.from(Array(9), () => new Array(9).fill(null)),
-    bigSquares: Array(9).fill(null),
-    availableBoard: 4,
-    xIsNext: true
-  }]);
+  const [gameHistory, setGameHistory] = useState<BoardState[]>(() =>
+    createInitialGameHistory()
+  );
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>('Not connected');
   const [reconnectTimeout, setReconnectTimeout] = useState<number | null>(null);
   const [wasInRoom, setWasInRoom] = useState<string | null>(null);
+
+  const resetLobbyState = useCallback(() => {
+    setReconnectTimeout((prev) => {
+      if (prev) window.clearTimeout(prev);
+      return null;
+    });
+    setCurrentRoom(null);
+    setPlayerRole(null);
+    setRoomStatus(null);
+    setWasInRoom(null);
+    setGameHistory(createInitialGameHistory());
+    setChatMessages([]);
+    setErrorMessage(null);
+  }, []);
 
   // Connection handlers
   useEffect(() => {
@@ -106,12 +131,12 @@ function App() {
     socket.on('room_timeout', (data: RoomMessage) => {
       setRoomStatus(data.roomStatus);
       setStatusMessage('Opponent did not reconnect. Room closed.');
-      setCurrentRoom(null);
-      setPlayerRole(null);
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-        setReconnectTimeout(null);
-      }
+      resetLobbyState();
+    });
+
+    socket.on('room_closed', (data: RoomClosedMessage) => {
+      setStatusMessage(data.message);
+      resetLobbyState();
     });
 
     // Game state events
@@ -142,6 +167,7 @@ function App() {
       socket.off('player_disconnected');
       socket.off('player_reconnected');
       socket.off('room_timeout');
+      socket.off('room_closed');
       socket.off('state_update');
       socket.off('get_message');
       socket.off('error');
@@ -149,7 +175,7 @@ function App() {
         clearTimeout(reconnectTimeout);
       }
     };
-  }, [socket, reconnectTimeout]);
+  }, [socket, reconnectTimeout, resetLobbyState]);
 
   // Room management handlers
   const handleCreateRoom = useCallback((payload: CreateRoomPayload) => {
@@ -196,8 +222,21 @@ function App() {
     }
   }, [socket, currentRoom]);
 
+  const handleLeaveRoom = useCallback(() => {
+    if (!currentRoom) return;
+    const payload: LeaveRoomPayload = {
+      type: 'CLIENT',
+      room: currentRoom,
+      message: 'leave',
+    };
+    socket.emit('leave_room', payload);
+  }, [socket, currentRoom]);
+
   const isInGame = roomStatus === 'IN_PROGRESS';
   const isWaiting = roomStatus === 'WAITING_FOR_PLAYER' || roomStatus === 'WAITING_RECONNECT';
+  const latestBoard = gameHistory[gameHistory.length - 1];
+  const gameIsTerminal =
+    isInGame && latestBoard ? isGameTerminal(latestBoard) : false;
 
   return (
     <div className="app-container">
@@ -235,14 +274,18 @@ function App() {
           
           {isInGame && (
             <>
-              <GameControls
-                onResetBoard={handleResetBoard}
-                onSetAlmostWon={handleSetAlmostWon}
-              />
+              {!gameIsTerminal && (
+                <GameControls
+                  onResetBoard={handleResetBoard}
+                  onSetAlmostWon={handleSetAlmostWon}
+                />
+              )}
               <Game 
                 history={gameHistory}
                 playerRole={playerRole}
                 currentRoom={currentRoom}
+                onPlayAgain={handleResetBoard}
+                onBackToLobby={handleLeaveRoom}
               />
             </>
           )}
@@ -257,19 +300,8 @@ function App() {
           )}
 
           <button 
-            onClick={() => {
-              setCurrentRoom(null);
-              setPlayerRole(null);
-              setRoomStatus(null);
-              setWasInRoom(null);
-              setGameHistory([{
-                squares: Array.from(Array(9), () => new Array(9).fill(null)),
-                bigSquares: Array(9).fill(null),
-                availableBoard: 4,
-                xIsNext: true
-              }]);
-              setChatMessages([]);
-            }}
+            type="button"
+            onClick={handleLeaveRoom}
             className="leave-room-button"
           >
             Leave Room

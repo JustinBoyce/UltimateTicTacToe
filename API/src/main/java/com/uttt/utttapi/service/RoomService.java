@@ -15,6 +15,8 @@ import com.corundumstudio.socketio.SocketIOServer;
 import com.uttt.utttapi.game.UltimateTicTacToe;
 import com.uttt.utttapi.game.state.State;
 import com.uttt.utttapi.messages.MessageType;
+import com.uttt.utttapi.messages.Message;
+import com.uttt.utttapi.messages.serverMessages.RoomClosedMessage;
 import com.uttt.utttapi.messages.serverMessages.RoomMessage;
 import com.uttt.utttapi.messages.serverMessages.StateMessage;
 import com.uttt.utttapi.room.Room;
@@ -211,13 +213,50 @@ public class RoomService {
         return room;
     }
 
+    public void leaveRoom(SocketIOClient client) {
+        UUID sessionId = client.getSessionId();
+        String roomId = playerToRoom.get(sessionId);
+        if (roomId == null) {
+            log.warn("leave_room: client {} not in any room", sessionId);
+            client.sendEvent("error", new Message(MessageType.SERVER, "Not in a room"));
+            return;
+        }
+
+        Room room = rooms.get(roomId);
+        if (room == null || !room.containsPlayer(client)) {
+            playerToRoom.remove(sessionId);
+            client.sendEvent("error", new Message(MessageType.SERVER, "Room not found"));
+            log.warn("leave_room: stale mapping for client {}", sessionId);
+            return;
+        }
+
+        SocketIOClient other = room.getOtherPlayer(client);
+        if (other != null) {
+            other.sendEvent("room_closed", new RoomClosedMessage(
+                    MessageType.SERVER,
+                    "Opponent left. Room closed.",
+                    roomId,
+                    "opponent_left"));
+        }
+        client.sendEvent("room_closed", new RoomClosedMessage(
+                MessageType.SERVER,
+                "You left the room.",
+                roomId,
+                "self_left"));
+
+        cleanupRoom(roomId);
+        log.info("Client {} left room {} (room dissolved)", sessionId, roomId);
+    }
+
     public void cleanupRoom(String roomId) {
         Room room = rooms.remove(roomId);
         if (room != null) {
             if (room.getPlayer1() != null) {
+                room.getPlayer1().leaveRoom(roomId);
                 playerToRoom.remove(room.getPlayer1().getSessionId());
             }
             if (room.getPlayer2() != null) {
+                room.getPlayer2().leaveRoom(roomId);
                 playerToRoom.remove(room.getPlayer2().getSessionId());
             }
             log.info("Room {} cleaned up", roomId);

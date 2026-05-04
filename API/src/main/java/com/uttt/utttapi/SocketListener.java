@@ -38,6 +38,7 @@ public class SocketListener {
         this.server.addEventListener("move_made", MoveMade.class, onMoveMade());
         this.server.addEventListener("reset_board", Message.class, onResetBoard());
         this.server.addEventListener("set_almost_won", Message.class, onSetAlmostWon());
+        this.server.addEventListener("leave_room", Message.class, onLeaveRoom());
     }
 
     private DataListener<Message> onChatReceived() {
@@ -65,6 +66,13 @@ public class SocketListener {
         return (senderClient, data, ackSender) -> {
             log.info("Set almost won requested: " + data.toString());
             socketService.setAlmostWon(data.getRoom(), senderClient);
+        };
+    }
+
+    private DataListener<Message> onLeaveRoom() {
+        return (senderClient, data, ackSender) -> {
+            log.info("leave_room: {}", data);
+            roomService.leaveRoom(senderClient);
         };
     }
 

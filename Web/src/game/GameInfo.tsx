@@ -5,12 +5,13 @@ interface GameInfoProps {
   history: BoardState[];
   xIsNext: boolean;
   winner: SquareValue;
+  isDraw: boolean;
   onStepNumberChange: (step: number) => void;
   playerRole: PlayerRole;
 }
 
 // This component manages the display of the history, the display of the next player up, and handles stepNumber changes
-function GameInfo({ history, xIsNext, winner, onStepNumberChange, playerRole }: GameInfoProps) {
+function GameInfo({ history, xIsNext, winner, isDraw, onStepNumberChange, playerRole }: GameInfoProps) {
     // stepNumber needs to be updated to the most recent step when a new state is sent from the BE
     // stepNumber needs to be updated when one of the history buttons is clicked
     const [historyStyle, setHistoryStyle] = useState<{ display: string }>({display: "none"});
@@ -46,6 +47,8 @@ function GameInfo({ history, xIsNext, winner, onStepNumberChange, playerRole }: 
         } else {
             status += ' (You lost)';
         }
+    } else if (isDraw) {
+        status = 'Draw — no winner';
     } else {
         const nextPlayer = xIsNext ? 'X' : 'O';
         status = `Next Player: ${nextPlayer}`;
