@@ -9,6 +9,11 @@ Every move you make changes where your opponent can make their next move. For ex
 Tied boxes count for each player.
 
 
+## Deployment (GitHub Pages + hosted API)
+SERVER_ALLOWED_ORIGINS` to your GitHub Pages site origin (e.g. `https://JustinBoyce.github.io`). Bind with `SOCKET_SERVER_HOST=0.0.0.0` if the default from `application-prod.properties` is overridden. See `API/API_CONTRACT.md` → **Configuration**.
+1. **Backend:** run the Spring Boot app with `SPRING_PROFILES_ACTIVE=prod` and set `SOCKET_
+2. **Frontend:** set `VITE_SOCKET_URL` in `.env.production` to your live Socket.IO URL, then `npm run build` and deploy `dist` (e.g. `npm run deploy` for gh-pages). See `FRONTEND.md` → **Configuration**.
+
 TODOs
 - Have a game integrated with the backend without bugs
     - Figure out how to handle rooms

@@ -5,8 +5,8 @@
 This document describes the Socket.IO-based API contract for integrating with the Ultimate Tic Tac Toe backend. The backend supports multiple concurrent game rooms, each hosting exactly two players.
 
 **Base Connection:**
-- **Host:** `localhost` (configurable via `socket-server.host`)
-- **Port:** `8085` (configurable via `socket-server.port`)
+- **Host / port:** Configurable on the server (see [Configuration](#configuration) and `API/API_CONTRACT.md`).
+- **Typical local dev:** `http://localhost:8085` with default API settings.
 - **Protocol:** Socket.IO
 
 ---
@@ -667,12 +667,11 @@ socket.on('error', (data) => {
 
 ## Configuration
 
-The backend can be configured via `application.properties`:
-- `socket-server.host` - Server hostname (default: `localhost`)
-- `socket-server.port` - Server port (default: `8085`)
+Runtime settings use the API’s `application.properties` plus optional profile files (`application-local.properties`, `application-prod.properties`). See the canonical **[API/API_CONTRACT.md](../../API/API_CONTRACT.md#configuration)** section for property names, env vars (`SOCKET_SERVER_HOST`, `SOCKET_SERVER_PORT`, `SOCKET_SERVER_ALLOWED_ORIGINS`), and profile usage.
 
-Frontend should use these values to construct the Socket.IO connection URL:
+The web app uses **`VITE_SOCKET_URL`** (see `Web/.env.example` and `Web/FRONTEND.md`).
+
 ```javascript
-const socket = io(`http://${host}:${port}`);
+const socket = io(import.meta.env.VITE_SOCKET_URL ?? 'http://localhost:8085'); // dev fallback; production build requires VITE_SOCKET_URL
 ```
 

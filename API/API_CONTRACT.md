@@ -5,8 +5,8 @@
 This document describes the Socket.IO-based API contract for integrating with the Ultimate Tic Tac Toe backend. The backend supports multiple concurrent game rooms, each hosting exactly two players.
 
 **Base Connection:**
-- **Host:** `localhost` (configurable via `socket-server.host`)
-- **Port:** `8085` (configurable via `socket-server.port`)
+- **Host / port:** Configurable via Spring properties and environment variables (see [Configuration](#configuration)).
+- **Typical local dev:** `http://localhost:8085` when using default port and host.
 - **Protocol:** Socket.IO
 
 ---
@@ -666,12 +666,31 @@ socket.on('error', (data) => {
 
 ## Configuration
 
-The backend can be configured via `application.properties`:
-- `socket-server.host` - Server hostname (default: `localhost`)
-- `socket-server.port` - Server port (default: `8085`)
+Runtime settings use [`application.properties`](src/main/resources/application.properties) plus optional profile files:
 
-Frontend should use these values to construct the Socket.IO connection URL:
+| File | When used |
+|------|-----------|
+| `application.properties` | Always (shared defaults) |
+| `application-local.properties` | `SPRING_PROFILES_ACTIVE` includes `local` |
+| `application-prod.properties` | `SPRING_PROFILES_ACTIVE` includes `prod` |
+
+### Properties and environment variables
+
+| Property | Env var (override) | Purpose |
+|----------|-------------------|---------|
+| `socket-server.host` | `SOCKET_SERVER_HOST` | Socket.IO bind hostname (e.g. `localhost` for local-only, `0.0.0.0` in production) |
+| `socket-server.port` | `SOCKET_SERVER_PORT` | Listen port (default `8085`) |
+| `socket-server.allowed-origins` | `SOCKET_SERVER_ALLOWED_ORIGINS` | CORS / Socket.IO `Origin` check (single origin, or `*`; comma-separated lists are collapsed to `*` with a warning—prefer one explicit origin in production) |
+
+**Local development:** run with profile `local` so Vite origins are allowed, e.g. `SPRING_PROFILES_ACTIVE=local` (or `--spring.profiles.active=local`).
+
+**Production:** set `SPRING_PROFILES_ACTIVE=prod` and set `SOCKET_SERVER_ALLOWED_ORIGINS` to your hosted frontend origin (e.g. `https://yourusername.github.io`). Avoid `*` in production unless you accept the security tradeoff.
+
+### Frontend (Vite)
+
+The web app reads `VITE_SOCKET_URL` at build time (see `Web/.env.example` and `Web/FRONTEND.md`). Example:
+
 ```javascript
-const socket = io(`http://${host}:${port}`);
+const socket = io(import.meta.env.VITE_SOCKET_URL ?? 'http://localhost:8085'); // dev fallback only; production requires env
 ```
 
