@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CreateRoomPayload, JoinRoomPayload } from '../types';
+import { generateRoomId, normalizeRoomId } from '../utils/roomId';
 
 interface RoomManagerProps {
   onCreateRoom: (payload: CreateRoomPayload) => void;
@@ -8,24 +9,23 @@ interface RoomManagerProps {
 }
 
 export default function RoomManager({ onCreateRoom, onJoinRoom, disabled }: RoomManagerProps) {
-  const [roomId, setRoomId] = useState<string>('');
+  const [joinRoomId, setJoinRoomId] = useState<string>('');
 
   const handleCreateRoom = () => {
-    if (roomId.trim()) {
-      onCreateRoom({
-        type: 'CLIENT',
-        room: roomId.trim(),
-        message: 'Creating room'
-      });
-    }
+    onCreateRoom({
+      type: 'CLIENT',
+      room: generateRoomId(),
+      message: 'Creating room',
+    });
   };
 
   const handleJoinRoom = () => {
-    if (roomId.trim()) {
+    const room = normalizeRoomId(joinRoomId);
+    if (room) {
       onJoinRoom({
         type: 'CLIENT',
-        room: roomId.trim(),
-        message: 'Joining room'
+        room,
+        message: 'Joining room',
       });
     }
   };
@@ -34,37 +34,36 @@ export default function RoomManager({ onCreateRoom, onJoinRoom, disabled }: Room
     <div className="room-manager">
       <h2>Ultimate Tic Tac Toe</h2>
       <div className="room-input-group">
+        <button
+          onClick={handleCreateRoom}
+          disabled={disabled}
+          className="room-button room-button-create"
+        >
+          Create Room
+        </button>
         <input
           type="text"
-          placeholder="Enter room ID"
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value)}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && roomId.trim()) {
-              handleCreateRoom();
+          placeholder="Enter room code"
+          value={joinRoomId}
+          onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && joinRoomId.trim()) {
+              handleJoinRoom();
             }
           }}
           disabled={disabled}
           className="room-input"
+          maxLength={5}
+          autoCapitalize="characters"
         />
-        <div className="room-buttons">
-          <button 
-            onClick={handleCreateRoom} 
-            disabled={disabled || !roomId.trim()}
-            className="room-button"
-          >
-            Create Room
-          </button>
-          <button 
-            onClick={handleJoinRoom} 
-            disabled={disabled || !roomId.trim()}
-            className="room-button"
-          >
-            Join Room
-          </button>
-        </div>
+        <button
+          onClick={handleJoinRoom}
+          disabled={disabled || !joinRoomId.trim()}
+          className="room-button"
+        >
+          Join Room
+        </button>
       </div>
     </div>
   );
 }
-
