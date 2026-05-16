@@ -95,14 +95,14 @@ function App() {
       setCurrentRoom(data.room || null);
       setPlayerRole(data.playerRole || null);
       setRoomStatus(data.roomStatus);
-      setStatusMessage(`Joined room ${data.room}. You are player ${data.playerRole}`);
+      setStatusMessage('Joined room');
       setErrorMessage(null);
       setWasInRoom(null); // Clear reconnection flag
     });
 
     socket.on('game_started', (data: RoomMessage) => {
       setRoomStatus(data.roomStatus);
-      setStatusMessage(`Game started! You are player ${data.playerRole}`);
+      setStatusMessage('Game started!');
       setErrorMessage(null);
     });
 
@@ -246,6 +246,9 @@ function App() {
             {isConnected ? '●' : '○'}
           </span>
           <span className="status-text">{statusMessage}</span>
+          {currentRoom && (
+            <span className="room-id">Room: {currentRoom}</span>
+          )}
           {playerRole && (
             <span className="player-role">You are: {playerRole}</span>
           )}
