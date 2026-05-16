@@ -59,13 +59,17 @@ public class RoomService {
             return null;
         }
 
+        if (room.getStatus() == RoomStatus.WAITING_RECONNECT) {
+            return handleReconnect(client, roomId);
+        }
+
         if (room.isFull()) {
             log.warn("Room {} is already full", roomId);
             return null;
         }
 
         UUID sessionId = client.getSessionId();
-        
+
         // Check if player is already in another room
         if (playerToRoom.containsKey(sessionId)) {
             String existingRoomId = playerToRoom.get(sessionId);
@@ -73,8 +77,6 @@ public class RoomService {
                 log.warn("Player {} is already in room {}", sessionId, existingRoomId);
                 return null;
             }
-            // Reconnecting to same room
-            return handleReconnect(client, roomId);
         }
 
         // Add player to room
@@ -121,7 +123,11 @@ public class RoomService {
     public void handleDisconnect(SocketIOClient client) {
         UUID sessionId = client.getSessionId();
         String roomId = playerToRoom.get(sessionId);
-        
+
+        if (roomId == null) {
+            roomId = findRoomIdByPlayerSession(sessionId);
+        }
+
         if (roomId == null) {
             log.info("Client {} disconnected but was not in any room", sessionId);
             return;
@@ -134,34 +140,51 @@ public class RoomService {
             return;
         }
 
+        if (room.getStatus() == RoomStatus.WAITING_RECONNECT) {
+            if (sessionId.equals(room.getDisconnectedPlayerId())) {
+                playerToRoom.remove(sessionId);
+                log.info("Ignoring duplicate disconnect for already-disconnected player {} in room {}",
+                        sessionId, roomId);
+                return;
+            }
+            // Connected player left while opponent was disconnected
+            cleanupRoom(roomId);
+            log.info("Connected player {} disconnected from room {} while waiting for reconnect; room closed",
+                    sessionId, roomId);
+            return;
+        }
+
+        if (room.getStatus() != RoomStatus.IN_PROGRESS) {
+            cleanupRoom(roomId);
+            return;
+        }
+
         // Mark player as disconnected
         if (room.getPlayer1() != null && room.getPlayer1().getSessionId().equals(sessionId)) {
             room.setDisconnectedPlayerId(sessionId);
         } else if (room.getPlayer2() != null && room.getPlayer2().getSessionId().equals(sessionId)) {
             room.setDisconnectedPlayerId(sessionId);
+        } else {
+            log.warn("Client {} not found in player slots for room {}", sessionId, roomId);
+            playerToRoom.remove(sessionId);
+            return;
         }
 
-        // If room is in progress, set to waiting reconnect
-        if (room.getStatus() == RoomStatus.IN_PROGRESS) {
-            room.setStatus(RoomStatus.WAITING_RECONNECT);
-            room.setDisconnectTime(Instant.now());
-            
-            // Notify other player
-            SocketIOClient otherPlayer = room.getOtherPlayer(client);
-            if (otherPlayer != null) {
-                otherPlayer.sendEvent("player_disconnected", new RoomMessage(
+        playerToRoom.remove(sessionId);
+        room.setStatus(RoomStatus.WAITING_RECONNECT);
+        room.setDisconnectTime(Instant.now());
+
+        SocketIOClient otherPlayer = getConnectedPlayer(room, sessionId);
+        if (otherPlayer != null) {
+            otherPlayer.sendEvent("player_disconnected", new RoomMessage(
                     MessageType.SERVER,
                     "Player disconnected. Waiting for reconnection...",
                     roomId,
                     room.getPlayerRole(otherPlayer),
                     RoomStatus.WAITING_RECONNECT
-                ));
-            }
-            log.info("Player {} disconnected from room {}. Waiting for reconnection...", sessionId, roomId);
-        } else {
-            // If room was waiting for player, just remove it
-            cleanupRoom(roomId);
+            ));
         }
+        log.info("Player {} disconnected from room {}. Waiting for reconnection...", sessionId, roomId);
     }
 
     public Room handleReconnect(SocketIOClient client, String roomId) {
@@ -171,40 +194,99 @@ public class RoomService {
             return null;
         }
 
-        UUID sessionId = client.getSessionId();
-        
-        // Verify this is the disconnected player
-        if (!sessionId.equals(room.getDisconnectedPlayerId())) {
-            log.warn("Client {} is not the disconnected player for room {}", sessionId, roomId);
+        if (room.getStatus() == RoomStatus.WAITING_RECONNECT) {
+            return completeReconnect(client, room, roomId);
+        }
+
+        if (room.getStatus() == RoomStatus.IN_PROGRESS) {
+            // Page refresh: new socket may reconnect before the old socket's disconnect is processed
+            return tryReconnectToOpenSlot(client, room, roomId);
+        }
+
+        log.warn("Room {} is not accepting reconnection (status: {})", roomId, room.getStatus());
+        return null;
+    }
+
+    private Room completeReconnect(SocketIOClient client, Room room, String roomId) {
+        UUID disconnectedId = room.getDisconnectedPlayerId();
+        if (disconnectedId == null) {
+            log.warn("Room {} has no disconnected player recorded", roomId);
             return null;
         }
 
-        // Restore connection - update player reference with new client instance
-        if (room.getPlayer1() != null && room.getPlayer1().getSessionId().equals(sessionId)) {
-            // Player1 reconnected - update reference with new client instance
+        UUID sessionId = client.getSessionId();
+
+        SocketIOClient connectedPlayer = getConnectedPlayer(room, disconnectedId);
+        if (connectedPlayer != null && connectedPlayer.getSessionId().equals(sessionId)) {
+            log.warn("Client {} is already connected to room {}", sessionId, roomId);
+            return null;
+        }
+
+        if (room.getPlayer1() != null && room.getPlayer1().getSessionId().equals(disconnectedId)) {
             room.setPlayer1(client);
-        } else if (room.getPlayer2() != null && room.getPlayer2().getSessionId().equals(sessionId)) {
-            // Player2 reconnected - update reference with new client instance
+        } else if (room.getPlayer2() != null && room.getPlayer2().getSessionId().equals(disconnectedId)) {
+            room.setPlayer2(client);
+        } else {
+            log.warn("Disconnected player {} not found in room {}", disconnectedId, roomId);
+            return null;
+        }
+
+        return finalizeReconnect(client, room, roomId);
+    }
+
+    private Room tryReconnectToOpenSlot(SocketIOClient client, Room room, String roomId) {
+        UUID sessionId = client.getSessionId();
+
+        if (room.containsPlayer(client)) {
+            log.warn("Client {} is already connected to room {}", sessionId, roomId);
+            return null;
+        }
+
+        boolean player1Open = room.getPlayer1() == null || !room.getPlayer1().isChannelOpen();
+        boolean player2Open = room.getPlayer2() == null || !room.getPlayer2().isChannelOpen();
+
+        if (player1Open && player2Open) {
+            log.warn("Room {} has no open player slot for reconnection", roomId);
+            return null;
+        }
+        if (!player1Open && !player2Open) {
+            log.warn("Room {} is full and both players are connected", roomId);
+            return null;
+        }
+
+        if (player1Open) {
+            if (room.getPlayer1() != null) {
+                playerToRoom.remove(room.getPlayer1().getSessionId());
+            }
+            room.setPlayer1(client);
+        } else {
+            if (room.getPlayer2() != null) {
+                playerToRoom.remove(room.getPlayer2().getSessionId());
+            }
             room.setPlayer2(client);
         }
 
-        // Rejoin room
+        return finalizeReconnect(client, room, roomId);
+    }
+
+    private Room finalizeReconnect(SocketIOClient client, Room room, String roomId) {
+        UUID sessionId = client.getSessionId();
+        playerToRoom.put(sessionId, roomId);
         client.joinRoom(roomId);
         room.setStatus(RoomStatus.IN_PROGRESS);
         room.setDisconnectedPlayerId(null);
         room.setDisconnectTime(null);
         room.updateActivity();
 
-        // Notify both players
         State currentState = room.getGame().getState();
         for (SocketIOClient roomClient : server.getRoomOperations(roomId).getClients()) {
             String role = room.getPlayerRole(roomClient);
             roomClient.sendEvent("player_reconnected", new RoomMessage(
-                MessageType.SERVER,
-                "Player reconnected. Game resumed.",
-                roomId,
-                role,
-                RoomStatus.IN_PROGRESS
+                    MessageType.SERVER,
+                    "Player reconnected. Game resumed.",
+                    roomId,
+                    role,
+                    RoomStatus.IN_PROGRESS
             ));
             roomClient.sendEvent("state_update", new StateMessage(currentState));
         }
@@ -307,6 +389,29 @@ public class RoomService {
 
     public String getPlayerRoom(UUID sessionId) {
         return playerToRoom.get(sessionId);
+    }
+
+    private SocketIOClient getConnectedPlayer(Room room, UUID disconnectedPlayerId) {
+        if (room.getPlayer1() != null && !room.getPlayer1().getSessionId().equals(disconnectedPlayerId)) {
+            return room.getPlayer1();
+        }
+        if (room.getPlayer2() != null && !room.getPlayer2().getSessionId().equals(disconnectedPlayerId)) {
+            return room.getPlayer2();
+        }
+        return null;
+    }
+
+    private String findRoomIdByPlayerSession(UUID sessionId) {
+        for (Map.Entry<String, Room> entry : rooms.entrySet()) {
+            Room room = entry.getValue();
+            if (room.getPlayer1() != null && room.getPlayer1().getSessionId().equals(sessionId)) {
+                return entry.getKey();
+            }
+            if (room.getPlayer2() != null && room.getPlayer2().getSessionId().equals(sessionId)) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 }
 

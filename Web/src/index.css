@@ -346,20 +346,6 @@ li button:hover {
     font-weight: 500;
 }
 
-.reconnect-prompt {
-    padding: 15px;
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 8px;
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-.reconnect-prompt p {
-    margin: 0 0 10px 0;
-    color: #856404;
-}
-
 /* Chat */
 .chat-container {
     background: white;

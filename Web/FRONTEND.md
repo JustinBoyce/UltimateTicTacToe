@@ -21,13 +21,13 @@ The Socket.IO URL is resolved in `service/socket.ts`:
 
 ## Entry and global wiring
 
-`index.tsx` mounts a single root: `ReactDOM.createRoot(...).render(<App />)`. There is no router; one screen tree is driven entirely by `App` state.
+`index.tsx` mounts a single root: `ReactDOM.createRoot(...).render(<App />)`. There is no router; one screen tree is driven by session state from **`useGameSession`**.
 
-The server link is a **Socket.IO client** created once per page load in `service/socket.ts` (URL from `VITE_SOCKET_URL` / dev fallback). `App` and `Game` both call `getSocket()` and share that **module-level singleton**.
+The server link is a **Socket.IO client** created once per page load in `service/socket.ts` (URL from `VITE_SOCKET_URL` / dev fallback). `useGameSession` and `Game` both call `getSocket()` and share that **module-level singleton**.
 
 ## Where state lives (source of truth)
 
-Almost all **remote** and **session** state is in **`App`**:
+Almost all **remote** and **session** state is in **[`hooks/useGameSession.ts`](src/hooks/useGameSession.ts)** (consumed by `App`):
 
 | State | Role |
 |--------|------|
@@ -36,105 +36,144 @@ Almost all **remote** and **session** state is in **`App`**:
 | `currentRoom`, `playerRole`, `roomStatus` | Which room you are in and server room phase |
 | `gameHistory` | Full move history from `state_update` |
 | `chatMessages` | Chat lines from `get_message` |
-| `wasInRoom`, `reconnectTimeout` | Disconnect / reconnect UX |
+| `wasInRoom`, `reconnectTimeout` | Internal: room id on disconnect; 60s timer when opponent disconnects |
 
-`App` registers **all inbound** socket listeners (`connect`, `disconnect`, `player_joined`, `game_started`, `state_update`, `get_message`, `room_closed`, etc.) and updates this state. Outbound actions are **`useCallback` handlers** that `socket.emit(...)`.
+**Refs** (not React state, synced each render): `currentRoomRef`, `wasInRoomRef`, `playerRoleRef`, `pendingSelfReconnectRef`, `reconnectRetryRef`, `reconnectTimeoutRef`, `reconnectRetryTimerRef` — used inside socket handlers so `connect` / `disconnect` always see the latest room id without stale closures.
 
-So: **server → `App` listeners → React state → props down**. **User actions → callbacks from `App` → `socket.emit`**.
+**`sessionStorage`** via [`utils/roomSession.ts`](src/utils/roomSession.ts): `{ roomId, playerRole }` saved on `player_joined` / `game_started` / successful `player_reconnected`; cleared on `resetLobbyState` (leave, timeout, room closed, or permanent reconnect failure).
+
+The hook registers **all inbound** socket listeners (`connect`, `disconnect`, `player_joined`, `game_started`, `player_disconnected`, `player_reconnected`, `room_timeout`, `state_update`, `get_message`, `room_closed`, `error`, etc.) and exposes **callbacks** that `socket.emit(...)` (plus internal `attemptRoomReconnect` → `reconnect_to_room`).
+
+So: **server → hook listeners → React state → props down**. **User actions → callbacks from hook → `socket.emit`**.
 
 ## UI branching (what you see when)
 
-1. **`currentRoom === null`** → only **`RoomManager`** (create/join by room id). Disabled until `isConnected`.
-2. **`currentRoom` set** → **`game-container`**: chat, leave button, and conditionally reconnect / game UI.
-3. **`roomStatus === 'IN_PROGRESS'`** (`isInGame`) → **`GameControls`** (until the game is terminal) + **`Game`**. Before that (e.g. waiting for opponent), you are “in a room” but **`Game` is not rendered**—only lobby-in-room chrome (chat, leave, reconnect banner when applicable).
+[`App.tsx`](src/App.tsx) is a thin shell: it calls `useGameSession()` and branches on `currentRoom`.
 
-Terminal game detection uses **`gameUtils.isGameTerminal`** on the **latest** board in `gameHistory` inside `App`; that hides dev **`GameControls`** when the meta-game is over.
+1. **`currentRoom === null`** → **`RoomManager`** (create/join by room id). Disabled until `isConnected`.
+2. **`currentRoom` set** → **`InRoomPanel`**: chat and leave button always; game UI only when in progress.
+3. **`roomStatus === 'IN_PROGRESS'`** (`isInGame`) → **`GameControls`** (until the game is terminal) + **`Game`**. Before that (e.g. `WAITING_FOR_PLAYER` or `WAITING_RECONNECT`), you are “in a room” but **`Game` is not rendered**—only chat, leave, and status text in **`AppHeader`**.
+
+When the opponent disconnects (`WAITING_RECONNECT`), the remaining player sees **“Opponent disconnected. Waiting for reconnection…”** in the status bar only. The board reappears when `player_reconnected` sets `roomStatus` back to `IN_PROGRESS`.
+
+Terminal game detection uses **`gameUtils.isGameTerminal`** on the **latest** board in `gameHistory` inside the hook; that hides dev **`GameControls`** when the meta-game is over.
+
+## Reconnection (automatic only)
+
+Reconnection is **fully automatic**; there is no manual reconnect control in the UI.
+
+| Trigger | Behavior |
+|---------|----------|
+| Socket **`connect`** after disconnect | If `wasInRoom` was set on `disconnect`, emit `reconnect_to_room` for that room. |
+| Socket **`connect`** after page load | If `sessionStorage` has a saved session, restore `currentRoom` / `playerRole` and emit `reconnect_to_room`. |
+| **`error`** during a pending self-reconnect | Retry up to **2** times (1s apart). After that, clear session and `resetLobbyState` if the message looks like a dead room / failed reconnect. |
+| Opponent disconnect | `player_disconnected` → status message + 60s local timer (mirrors server timeout UX). |
+| Success | `player_reconnected` + `state_update`; status shows “You reconnected…” vs “Opponent reconnected…” based on `pendingSelfReconnectRef`. |
+
+**Note:** Rooms live in server memory. After an **API restart**, stored session data may point at a room that no longer exists; reconnect will fail, session is cleared, and the user returns to the lobby. Create or join a new room.
+
+See [API_CONTRACT.md](API_CONTRACT.md) for server events (`reconnect_to_room`, `WAITING_RECONNECT`, 60s timeout).
 
 ## Component responsibilities (top → bottom)
 
 ### `App`
 
+- Calls **`useGameSession()`** and composes layout only (no socket imports).
+- Renders **`AppHeader`**, then either **`RoomManager`** or **`InRoomPanel`**.
+
+### `hooks/useGameSession.ts`
+
 - Owns socket lifecycle (`socket.connect()` in `useEffect`).
 - Central hub for **all server events** and **all emits** except **`move_made`** (see `Game`).
-- Passes **data and callbacks** into children; no context API.
+- Returns **`UseGameSessionResult`**: state, derived flags (`isInGame`, `gameIsTerminal`), and actions (`createRoom`, `joinRoom`, `sendMessage`, `resetBoard`, `setAlmostWon`, `leaveRoom`, `dismissError`).
+
+### `AppHeader`
+
+- Presentational: connection indicator, status text, room id, role, dismissible error banner.
+
+### `InRoomPanel`
+
+- Presentational: in-room layout—conditional **`GameControls`** + **`Game`**, **`Chat`**, leave button.
 
 ### `RoomManager`
 
 - **Local** state: room id string.
-- Calls **`onCreateRoom` / `onJoinRoom`** with typed payloads (`CreateRoomPayload`, `JoinRoomPayload`). It does not talk to the socket directly.
+- **`generateRoomId()`** / **`normalizeRoomId()`** from [`utils/roomId.ts`](src/utils/roomId.ts) for create/join payloads.
+- Calls **`onCreateRoom` / `onJoinRoom`** with typed payloads. It does not talk to the socket directly. Joining a room in `WAITING_RECONNECT` on the server is treated as reconnect (see API).
+
+### `utils/roomSession.ts`
+
+- **`saveRoomSession` / `loadRoomSession` / `clearRoomSession`** — `sessionStorage` key `uttt_room_session` for refresh/reconnect after navigation.
+
+### `game/initialGameState.ts`
+
+- **`createInitialGameHistory()`** — empty board used when resetting lobby state.
 
 ### `Chat`
 
 - **Local** state: draft message.
-- **Read-only** `messages` from `App`; **`onSendMessage`** builds `SendMessagePayload` with `room` from props. Scroll-to-bottom when `messages` changes.
+- **Read-only** `messages` from parent; **`onSendMessage`** builds `SendMessagePayload` with `room` from props.
 
 ### `GameControls`
 
-- Pure UI: **Reset board** and **Set almost won** → `App`’s `handleResetBoard` / `handleSetAlmostWon` (both emit with `currentRoom`).
+- Pure UI: **Reset board** and **Set almost won** → hook’s `resetBoard` / `setAlmostWon`.
 
 ### `Game`
 
-- **Props from `App`:** `history` (= `gameHistory`), `playerRole`, `currentRoom`, `onPlayAgain`, `onBackToLobby`.
-- **Local** state: `userStepNumber` for **replay / scrub** through history (which step is *viewed* vs latest from server).
-- **Derives** from history + viewed step: current board slice, meta winner/draw (`gameUtils`), whose turn, `canMakeMove`, whether the match is terminal at the **last** step.
-- **Emits `move_made` itself** via `getSocket()` (only path where moves leave the client without going through an `App` callback).
-- Composes **`GameBoard`**, **`GameInfo`**, **`PostGameActions`** (post-game only when terminal at latest step and user is viewing latest).
+- **Props from `InRoomPanel`:** `history`, `playerRole`, `currentRoom`, `onPlayAgain`, `onBackToLobby`.
+- **Local** state: `userStepNumber` for **replay / scrub** through history.
+- **Emits `move_made` itself** via `getSocket()` (only path where moves leave the client without going through the hook).
+- Composes **`GameBoard`**, **`GameInfo`**, **`PostGameActions`**.
 
-### `GameBoard`
+### `GameBoard` / `Board` / `GameInfo` / `PostGameActions`
 
-- Maps the 9 sub-boards; decides **which sub-board is “active”** (highlight / accepts clicks) from `BoardState.availableBoard`, `canMakeMove`, and whether that meta cell is already decided.
-- For won sub-boards, fills display squares with the winner for visuals.
-- Delegates cell clicks to **`onBoardGameClick(i, j)`** from `Game`.
+- Unchanged presentation and replay behavior (see prior sections in git history if needed).
 
-### `Board`
+### `types.ts` / `gameUtils.ts` / `roomId.ts`
 
-- One 3×3 grid of buttons; **`active`**, **`disabled`**, empty cell → whether a click fires **`onClick(i)`**.
-
-### `GameInfo`
-
-- Status line (winner / draw / next player, personalized with `playerRole`).
-- **History list**: toggles visibility; **`jumpTo(step)`** calls **`onStepNumberChange`** up to `Game` (does not change server state).
-
-### `PostGameActions`
-
-- **`onPlayAgain`** → in `App` this is **`handleResetBoard`** (reset emit).
-- **`onBackToLobby`** → **`handleLeaveRoom`** (`leave_room` emit + eventual `room_closed` / local reset).
-
-### `types.ts` / `gameUtils.ts`
-
-- **Types:** payloads and `BoardState` / `StateMessage` shapes shared across UI.
-- **Pure helpers:** meta winner, meta draw, terminal game—used by `Game` and `App`.
+- **Types:** payloads and `BoardState` / `StateMessage` shapes shared across UI (`RoomStatus` includes `WAITING_RECONNECT`).
+- **Pure helpers:** meta winner, meta draw, terminal game—used by `Game` and `useGameSession`.
+- **Room ids:** 5-character uppercase alphanumeric; normalized on join input.
 
 ## Data flow diagram
 
 ```mermaid
 flowchart TB
   subgraph server [Socket.IO server]
-    SE[state_update / room / chat events]
+    SE[state_update / room / chat / reconnect events]
   end
 
-  App[App: session + history + chat + handlers]
+  SS[(sessionStorage roomSession)]
 
+  App[App: layout shell]
+  Hook[useGameSession]
+  Header[AppHeader]
+  InRoom[InRoomPanel]
   RM[RoomManager]
-  GC[GameControls]
   G[Game: replay + move emit]
   CH[Chat]
-  SE --> App
-  RM -->|create/join callbacks| App
-  App -->|emit| server
-  GC -->|reset / test state| App
-  CH -->|send_message| App
-  App -->|history, role, room, callbacks| G
+
+  App --> Hook
+  App --> Header
+  App --> RM
+  App --> InRoom
+  Hook --> SE
+  SS <-->|save on join / clear on leave| Hook
+  RM -->|create/join| Hook
+  InRoom -->|reset / leave / chat| Hook
+  InRoom --> G
+  InRoom --> CH
   G -->|move_made| server
-  App -->|messages, onSend| CH
 ```
 
 ## Notable design choices
 
-1. **Split socket usage:** `App` owns most emits/listeners; **`Game` emits moves** directly. Behavior is still one shared socket, but **move traffic is not threaded through `App` props** like chat/room actions.
-2. **Viewed vs authoritative state:** `gameHistory` in `App` is authoritative; `Game`’s `userStepNumber` only changes **which slice of history is shown** and whether moves are allowed (only on latest step when it’s your turn).
-3. **TODOs in code:** Comments in `App` and `Game` suggest a future refactor (e.g. dedicated socket/orchestration component, review of “non-singleton” wording—`getSocket` is actually a singleton).
+1. **Split socket usage:** `useGameSession` owns most emits/listeners; **`Game` emits moves** directly. Move traffic is not threaded through hook props like chat/room actions.
+2. **Thin `App`:** Session orchestration lives in one hook file; `App` stays easy to read (~50 lines).
+3. **Viewed vs authoritative state:** `gameHistory` in the hook is authoritative; `Game`’s `userStepNumber` only changes **which slice of history is shown**.
+4. **Refs for socket handlers:** Room id and reconnect flags use refs so the listener `useEffect` does not re-subscribe on every room change.
+5. **Automatic reconnect only:** No user-triggered reconnect button.
 
 ## Summary
 
-**`App` is the hub for room, chat, connection, and history from the server; `Game` adds local replay UX and sends moves; presentation leaf components stay mostly stateless except for small local UI state.**
+**`useGameSession` is the hub for room, chat, connection, reconnection, and history; `App` composes UI; `Game` adds local replay UX and sends moves; leaf components stay mostly stateless except for small local UI state.**
