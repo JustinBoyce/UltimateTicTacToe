@@ -27,7 +27,7 @@ The server link is a **Socket.IO client** created once per page load in `service
 
 ## Where state lives (source of truth)
 
-Almost all **remote** and **session** state is in **[`hooks/useGameSession.ts`](src/hooks/useGameSession.ts)** (consumed by `App`):
+Almost all **remote** and **session** state is in **[`hooks/useGameSession/`](src/hooks/useGameSession/)** (consumed by `App` via `useGameSession` from `index.ts`):
 
 | State | Role |
 |--------|------|
@@ -38,7 +38,7 @@ Almost all **remote** and **session** state is in **[`hooks/useGameSession.ts`](
 | `chatMessages` | Chat lines from `get_message` |
 | `wasInRoom`, `reconnectTimeout` | Internal: room id on disconnect; 60s timer when opponent disconnects |
 
-**Refs** (not React state, synced each render): `currentRoomRef`, `wasInRoomRef`, `playerRoleRef`, `pendingSelfReconnectRef`, `reconnectRetryRef`, `reconnectTimeoutRef`, `reconnectRetryTimerRef` — used inside socket handlers so `connect` / `disconnect` always see the latest room id without stale closures.
+**Refs** (not React state, synced each render): `currentRoomRef`, `playerRoleRef` in `index.ts`; reconnect refs (`wasInRoomRef`, `pendingSelfReconnectRef`, `reconnectRetryRef`, `reconnectTimeoutRef`, `reconnectRetryTimerRef`) in `useRoomReconnect.ts` — used inside socket handlers so `connect` / `disconnect` always see the latest room id without stale closures.
 
 **`sessionStorage`** via [`utils/roomSession.ts`](src/utils/roomSession.ts): `{ roomId, playerRole }` saved on `player_joined` / `game_started` / successful `player_reconnected`; cleared on `resetLobbyState` (leave, timeout, room closed, or permanent reconnect failure).
 
@@ -81,9 +81,15 @@ See [API_CONTRACT.md](API_CONTRACT.md) for server events (`reconnect_to_room`, `
 - Calls **`useGameSession()`** and composes layout only (no socket imports).
 - Renders **`AppHeader`**, then either **`RoomManager`** or **`InRoomPanel`**.
 
-### `hooks/useGameSession.ts`
+### `hooks/useGameSession/` (public: `index.ts` only)
 
-- Owns socket lifecycle (`socket.connect()` in `useEffect`).
+| File | Role |
+|------|------|
+| [`index.ts`](src/hooks/useGameSession/index.ts) | Public facade: `useGameSession()`, room/game/chat state, emit callbacks, `socket.connect()` in `useEffect`. |
+| [`socketListeners.ts`](src/hooks/useGameSession/socketListeners.ts) | Private: `registerGameSessionSocketListeners` — all inbound socket handlers and cleanup. |
+| [`useRoomReconnect.ts`](src/hooks/useGameSession/useRoomReconnect.ts) | Private: `useRoomReconnect` — `wasInRoom`, opponent 60s timer, self-reconnect retries, `reconnect_to_room` emit. |
+| [`types.ts`](src/hooks/useGameSession/types.ts) | `UseGameSessionResult` (exported) and internal `GameSessionSocketContext`. |
+
 - Central hub for **all server events** and **all emits** except **`move_made`** (see `Game`).
 - Returns **`UseGameSessionResult`**: state, derived flags (`isInGame`, `gameIsTerminal`), and actions (`createRoom`, `joinRoom`, `sendMessage`, `resetBoard`, `setAlmostWon`, `leaveRoom`, `dismissError`).
 
@@ -169,7 +175,7 @@ flowchart TB
 ## Notable design choices
 
 1. **Split socket usage:** `useGameSession` owns most emits/listeners; **`Game` emits moves** directly. Move traffic is not threaded through hook props like chat/room actions.
-2. **Thin `App`:** Session orchestration lives in one hook file; `App` stays easy to read (~50 lines).
+2. **Thin `App`:** Session orchestration lives in `hooks/useGameSession/`; `App` stays easy to read (~50 lines).
 3. **Viewed vs authoritative state:** `gameHistory` in the hook is authoritative; `Game`’s `userStepNumber` only changes **which slice of history is shown**.
 4. **Refs for socket handlers:** Room id and reconnect flags use refs so the listener `useEffect` does not re-subscribe on every room change.
 5. **Automatic reconnect only:** No user-triggered reconnect button.
