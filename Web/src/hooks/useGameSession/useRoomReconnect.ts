@@ -12,7 +12,7 @@ export interface RoomReconnectApi {
   setWasInRoom: (value: string | null) => void;
   clearReconnectTimeout: () => void;
   clearReconnectRetryTimer: () => void;
-  attemptRoomReconnect: (roomId: string) => void;
+  attemptRoomReconnect: (roomId: string, playerToken?: string) => void;
   clearReconnectFlags: () => void;
   setOpponentDisconnectTimer: (onExpire: () => void) => void;
 }
