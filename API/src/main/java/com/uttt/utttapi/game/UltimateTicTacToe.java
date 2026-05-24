@@ -15,6 +15,14 @@ public class UltimateTicTacToe {
         this.state.setHistory(initialBoard());
     }
 
+    public UltimateTicTacToe(State persistedState) {
+        this.state = persistedState;
+    }
+
+    public void replaceState(State newState) {
+        this.state = newState;
+    }
+
     public State getState() {
         return this.state;
     }

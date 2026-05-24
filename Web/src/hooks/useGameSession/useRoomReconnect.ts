@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import type { Socket } from 'socket.io-client';
 import type { MutableRefObject } from 'react';
+import { loadRoomSession } from '../../utils/roomSession';
 
 export interface RoomReconnectApi {
   wasInRoomRef: MutableRefObject<string | null>;
@@ -45,11 +46,17 @@ export function useRoomReconnect(socket: Socket): RoomReconnectApi {
   }, []);
 
   const attemptRoomReconnect = useCallback(
-    (roomId: string) => {
+    (roomId: string, playerToken?: string) => {
+      const token = playerToken ?? loadRoomSession()?.playerToken;
+      if (!token) {
+        pendingSelfReconnectRef.current = false;
+        return;
+      }
       pendingSelfReconnectRef.current = true;
       socket.emit('reconnect_to_room', {
         type: 'CLIENT',
         room: roomId,
+        playerToken: token,
         message: 'Reconnecting',
       });
     },

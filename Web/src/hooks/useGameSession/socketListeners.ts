@@ -62,7 +62,7 @@ export function registerGameSessionSocketListeners(
     if (stored) {
       setCurrentRoom(stored.roomId);
       setPlayerRole(stored.playerRole);
-      attemptRoomReconnect(stored.roomId);
+      attemptRoomReconnect(stored.roomId, stored.playerToken);
     }
   };
 
@@ -95,8 +95,8 @@ export function registerGameSessionSocketListeners(
     wasInRoomRef.current = null;
     reconnect.clearReconnectFlags();
     clearReconnectRetryTimer();
-    if (room && role) {
-      saveRoomSession(room, role);
+    if (room && role && data.playerToken) {
+      saveRoomSession(room, role, data.playerToken);
     }
   });
 
@@ -106,8 +106,9 @@ export function registerGameSessionSocketListeners(
     setErrorMessage(null);
     const room = data.room || currentRoomRef.current;
     const role = data.playerRole || playerRoleRef.current;
-    if (room && role) {
-      saveRoomSession(room, role);
+    const token = data.playerToken ?? loadRoomSession()?.playerToken;
+    if (room && role && token) {
+      saveRoomSession(room, role, token);
     }
   });
 
@@ -136,8 +137,9 @@ export function registerGameSessionSocketListeners(
     } else {
       setStatusMessage('Opponent reconnected! Game resumed.');
     }
-    if (room && role) {
-      saveRoomSession(room, role);
+    const token = data.playerToken ?? loadRoomSession()?.playerToken;
+    if (room && role && token) {
+      saveRoomSession(room, role, token);
     }
   });
 
@@ -173,11 +175,12 @@ export function registerGameSessionSocketListeners(
       wasInRoomRef.current ??
       loadRoomSession()?.roomId;
 
-    if (reconnectRetryRef.current < 2 && roomId) {
+    const stored = loadRoomSession();
+    if (reconnectRetryRef.current < 2 && roomId && stored?.playerToken) {
       reconnectRetryRef.current += 1;
       clearReconnectRetryTimer();
       reconnectRetryTimerRef.current = window.setTimeout(() => {
-        attemptRoomReconnect(roomId);
+        attemptRoomReconnect(roomId, stored.playerToken);
       }, 1000);
       return;
     }

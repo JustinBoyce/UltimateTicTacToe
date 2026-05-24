@@ -40,7 +40,7 @@ Almost all **remote** and **session** state is in **[`hooks/useGameSession/`](sr
 
 **Refs** (not React state, synced each render): `currentRoomRef`, `playerRoleRef` in `index.ts`; reconnect refs (`wasInRoomRef`, `pendingSelfReconnectRef`, `reconnectRetryRef`, `reconnectTimeoutRef`, `reconnectRetryTimerRef`) in `useRoomReconnect.ts` — used inside socket handlers so `connect` / `disconnect` always see the latest room id without stale closures.
 
-**`sessionStorage`** via [`utils/roomSession.ts`](src/utils/roomSession.ts): `{ roomId, playerRole }` saved on `player_joined` / `game_started` / successful `player_reconnected`; cleared on `resetLobbyState` (leave, timeout, room closed, or permanent reconnect failure).
+**`sessionStorage`** via [`utils/roomSession.ts`](src/utils/roomSession.ts): `{ roomId, playerRole, playerToken }` saved on `player_joined` / `game_started` / successful `player_reconnected`; cleared on `resetLobbyState` (leave, timeout, room closed, or permanent reconnect failure).
 
 The hook registers **all inbound** socket listeners (`connect`, `disconnect`, `player_joined`, `game_started`, `player_disconnected`, `player_reconnected`, `room_timeout`, `state_update`, `get_message`, `room_closed`, `error`, etc.) and exposes **callbacks** that `socket.emit(...)` (plus internal `attemptRoomReconnect` → `reconnect_to_room`).
 
@@ -70,7 +70,7 @@ Reconnection is **fully automatic**; there is no manual reconnect control in the
 | Opponent disconnect | `player_disconnected` → status message + 60s local timer (mirrors server timeout UX). |
 | Success | `player_reconnected` + `state_update`; status shows “You reconnected…” vs “Opponent reconnected…” based on `pendingSelfReconnectRef`. |
 
-**Note:** Rooms live in server memory. After an **API restart**, stored session data may point at a room that no longer exists; reconnect will fail, session is cleared, and the user returns to the lobby. Create or join a new room.
+**Note:** Active games are persisted in PostgreSQL. After an **API restart**, reconnect with `roomId` + `playerToken` from session storage restores the game. Reconnect fails if the room was closed (leave, timeout) or session lacks a token.
 
 See [API_CONTRACT.md](API_CONTRACT.md) for server events (`reconnect_to_room`, `WAITING_RECONNECT`, 60s timeout).
 
@@ -104,7 +104,7 @@ See [API_CONTRACT.md](API_CONTRACT.md) for server events (`reconnect_to_room`, `
 ### `RoomManager`
 
 - **Local** state: room id string.
-- **`generateRoomId()`** / **`normalizeRoomId()`** from [`utils/roomId.ts`](src/utils/roomId.ts) for create/join payloads.
+- **`normalizeRoomId()`** / **`isValidRoomId()`** from [`utils/roomId.ts`](src/utils/roomId.ts) for join input (6-character codes; create is server-assigned).
 - Calls **`onCreateRoom` / `onJoinRoom`** with typed payloads. It does not talk to the socket directly. Joining a room in `WAITING_RECONNECT` on the server is treated as reconnect (see API).
 
 ### `utils/roomSession.ts`
@@ -139,7 +139,7 @@ See [API_CONTRACT.md](API_CONTRACT.md) for server events (`reconnect_to_room`, `
 
 - **Types:** payloads and `BoardState` / `StateMessage` shapes shared across UI (`RoomStatus` includes `WAITING_RECONNECT`).
 - **Pure helpers:** meta winner, meta draw, terminal game—used by `Game` and `useGameSession`.
-- **Room ids:** 5-character uppercase alphanumeric; normalized on join input.
+- **Room ids:** 6-character uppercase alphanumeric; server assigns on create; join uses normalized user input.
 
 ## Data flow diagram
 

@@ -11,6 +11,7 @@ import com.uttt.utttapi.messages.Message;
 import com.uttt.utttapi.messages.MessageType;
 import com.uttt.utttapi.messages.serverMessages.StateMessage;
 import com.uttt.utttapi.room.Room;
+import com.uttt.utttapi.room.RoomStatus;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,21 +51,18 @@ public class SocketService {
             return;
         }
 
-        // Validate player is in room
-        if (!roomObj.containsPlayer(senderClient)) {
+        if (!isPlayerInRoom(roomObj, senderClient)) {
             log.warn("Player {} is not in room {}", senderClient.getSessionId(), room);
             senderClient.sendEvent("error", new Message(MessageType.SERVER, "You are not in this room"));
             return;
         }
 
-        // Validate room is in progress
-        if (roomObj.getStatus() != com.uttt.utttapi.room.RoomStatus.IN_PROGRESS) {
-            log.warn("Room {} is not in progress. Status: {}", room, roomObj.getStatus());
+        if (!isActivePlay(roomObj)) {
+            log.warn("Room {} is not in active play. Status: {}", room, roomObj.getStatus());
             senderClient.sendEvent("error", new Message(MessageType.SERVER, "Game is not in progress"));
             return;
         }
 
-        // Validate it's the player's turn
         UltimateTicTacToe game = roomService.getGame(room);
         if (game == null) {
             log.error("Game instance not found for room {}", room);
@@ -93,8 +91,8 @@ public class SocketService {
         }
         
         log.info("Move successful. New state: {}", returnState.toString());
-        roomObj.updateActivity();
-        
+        roomService.saveRoom(roomObj);
+
         // Send updates to every client in the room
         for (SocketIOClient client : server.getRoomOperations(room).getClients()) {
             client.sendEvent("state_update", new StateMessage(returnState));
@@ -112,19 +110,15 @@ public class SocketService {
             return;
         }
 
-        // Validate player is in room
-        if (!roomObj.containsPlayer(senderClient)) {
+        if (!isPlayerInRoom(roomObj, senderClient)) {
             log.warn("Player {} is not in room {}", senderClient.getSessionId(), room);
             senderClient.sendEvent("error", new Message(MessageType.SERVER, "You are not in this room"));
             return;
         }
 
-        // Create new game instance for this room
-        roomObj.setGame(new UltimateTicTacToe());
-        // Get initial state
+        roomService.resetGameState(roomObj);
         State initialState = roomObj.getGame().getState();
         log.info("Board reset. Initial state: {}", initialState.toString());
-        roomObj.updateActivity();
         
         // Send updates to every client in the room
         for (SocketIOClient client : server.getRoomOperations(room).getClients()) {
@@ -142,14 +136,14 @@ public class SocketService {
             return;
         }
 
-        if (!roomObj.containsPlayer(senderClient)) {
+        if (!isPlayerInRoom(roomObj, senderClient)) {
             log.warn("Player {} is not in room {}", senderClient.getSessionId(), room);
             senderClient.sendEvent("error", new Message(MessageType.SERVER, "You are not in this room"));
             return;
         }
 
-        if (roomObj.getStatus() != com.uttt.utttapi.room.RoomStatus.IN_PROGRESS) {
-            log.warn("Room {} is not in progress. Status: {}", room, roomObj.getStatus());
+        if (!isActivePlay(roomObj)) {
+            log.warn("Room {} is not in active play. Status: {}", room, roomObj.getStatus());
             senderClient.sendEvent("error", new Message(MessageType.SERVER, "Game is not in progress"));
             return;
         }
@@ -162,11 +156,21 @@ public class SocketService {
         }
 
         State nearWinState = game.setAlmostWonTestState();
-        roomObj.updateActivity();
+        roomService.saveRoom(roomObj);
 
         for (SocketIOClient client : server.getRoomOperations(room).getClients()) {
             client.sendEvent("state_update", new StateMessage(nearWinState));
         }
     }
 
+    private static boolean isActivePlay(Room room) {
+        return room.getStatus() == RoomStatus.IN_PROGRESS && room.getGameResult() == null;
+    }
+
+    private boolean isPlayerInRoom(Room room, SocketIOClient client) {
+        if (room.containsPlayer(client)) {
+            return true;
+        }
+        return roomService.isSessionInRoom(room.getRoomId(), client.getSessionId());
+    }
 }

@@ -21,11 +21,13 @@ export interface Message {
   type: MessageType;
   message: string;
   room?: string;
+  playerToken?: string;
 }
 
 export interface RoomMessage extends Message {
   playerRole?: PlayerRole;
   roomStatus: RoomStatus;
+  playerToken?: string;
 }
 
 export interface MoveMade {
@@ -42,7 +44,7 @@ export interface StateMessage extends Message {
 // Client event payloads
 export interface CreateRoomPayload {
   type: 'CLIENT';
-  room: string;
+  room?: string;
   message?: string;
 }
 
@@ -55,6 +57,7 @@ export interface JoinRoomPayload {
 export interface ReconnectToRoomPayload {
   type: 'CLIENT';
   room: string;
+  playerToken: string;
   message?: string;
 }
 

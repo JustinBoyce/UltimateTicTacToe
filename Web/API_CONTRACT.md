@@ -29,14 +29,16 @@ interface Message {
         "PLAYER_DISCONNECTED" | "PLAYER_RECONNECTED" | "ROOM_TIMEOUT" | "GAME_STARTED";
   message: string;
   room?: string;
+  playerToken?: string;
 }
 ```
 
 ### RoomMessage
 ```typescript
 interface RoomMessage extends Message {
-  playerRole?: "X" | "O";  // Assigned when joining
+  playerRole?: "X" | "O";
   roomStatus: "WAITING_FOR_PLAYER" | "IN_PROGRESS" | "WAITING_RECONNECT" | "ENDED";
+  playerToken?: string;
 }
 ```
 
@@ -86,33 +88,26 @@ enum RoomStatus {
 ## Client → Server Events
 
 ### `create_room`
-Creates a new game room and automatically adds the creator as player 1 (X). The creator is immediately added to the room and assigned the "X" role.
+Creates a new game room and adds the creator as player 1 (X). The server assigns a **6-character** room code.
 
 **Payload:**
 ```typescript
 {
   type: "CLIENT",
-  room: string,  // Room ID (e.g., "room-123")
+  room?: string,  // Omit; server rejects client-supplied IDs
   message?: string
 }
 ```
 
 **Response Events:**
-- Success: `player_joined` (RoomMessage) - includes `playerRole: "X"` and `roomStatus: "WAITING_FOR_PLAYER"`
+- Success: `player_joined` with `room`, `playerRole: "X"`, `playerToken`, `roomStatus: "WAITING_FOR_PLAYER"`
 - Error: `error` (Message)
 
 **Example:**
 ```javascript
-socket.emit('create_room', {
-  type: 'CLIENT',
-  room: 'room-123',
-  message: 'Creating room'
-});
-
-// Response will include your role as "X"
+socket.emit('create_room', { type: 'CLIENT', message: 'Creating room' });
 socket.on('player_joined', (data) => {
-  console.log('Room created! You are:', data.playerRole); // "X"
-  console.log('Room status:', data.roomStatus); // "WAITING_FOR_PLAYER"
+  // Persist data.room and data.playerToken for reconnect
 });
 ```
 
@@ -147,13 +142,14 @@ socket.emit('join_room', {
 ---
 
 ### `reconnect_to_room`
-Reconnects a player to a room after disconnection. Must be called within 60 seconds of disconnection.
+Reconnects a player after disconnect or API restart. Requires `playerToken` from join. Opponent must reconnect within 60s.
 
 **Payload:**
 ```typescript
 {
   type: "CLIENT",
-  room: string,  // Room ID to reconnect to
+  room: string,  // 6-character code
+  playerToken: string,
   message?: string
 }
 ```
@@ -166,7 +162,8 @@ Reconnects a player to a room after disconnection. Must be called within 60 seco
 ```javascript
 socket.emit('reconnect_to_room', {
   type: 'CLIENT',
-  room: 'room-123',
+  room: 'ABC123',
+  playerToken: savedToken,
   message: 'Reconnecting'
 });
 ```

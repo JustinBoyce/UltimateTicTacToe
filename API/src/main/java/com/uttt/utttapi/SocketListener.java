@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 public class SocketListener {
 
     private final SocketIOServer server;
-    
+
     private final SocketService socketService;
     private final RoomService roomService;
 
@@ -34,7 +34,7 @@ public class SocketListener {
         this.server.addEventListener("create_room", Message.class, onCreateRoom());
         this.server.addEventListener("join_room", Message.class, onJoinRoom());
         this.server.addEventListener("reconnect_to_room", Message.class, onReconnectToRoom());
-        this.server.addEventListener("send_message", Message.class, onChatReceived());        
+        this.server.addEventListener("send_message", Message.class, onChatReceived());
         this.server.addEventListener("move_made", MoveMade.class, onMoveMade());
         this.server.addEventListener("reset_board", Message.class, onResetBoard());
         this.server.addEventListener("set_almost_won", Message.class, onSetAlmostWon());
@@ -44,9 +44,9 @@ public class SocketListener {
     private DataListener<Message> onChatReceived() {
         return (senderClient, data, ackSender) -> {
             log.info(data.toString());
-            socketService.sendMessage(data.getRoom(),"get_message", senderClient, data.getMessage()); //TODO: Does this room actually matter or does the query param determine the room
+            socketService.sendMessage(data.getRoom(), "get_message", senderClient, data.getMessage());
         };
-    } 
+    }
 
     private DataListener<MoveMade> onMoveMade() {
         return (senderClient, data, ackSender) -> {
@@ -78,35 +78,25 @@ public class SocketListener {
 
     private DataListener<Message> onCreateRoom() {
         return (senderClient, data, ackSender) -> {
-            String roomId = data.getRoom();
-            if (roomId == null || roomId.isEmpty()) {
-                log.warn("Create room request with null or empty room ID");
-                senderClient.sendEvent("error", new Message(MessageType.SERVER, "Room ID is required"));
+            if (data.getRoom() != null && !data.getRoom().isBlank()) {
+                senderClient.sendEvent("error", new Message(MessageType.SERVER, "Room ID is assigned by the server"));
                 return;
             }
-            
-            Room room = roomService.createRoom(roomId);
+
+            Room room = roomService.createRoomAndJoinCreator(senderClient);
             if (room != null) {
-                // Automatically add the creator as player 1 (X)
-                Room joinedRoom = roomService.joinRoom(roomId, senderClient);
-                if (joinedRoom != null) {
-                    String role = joinedRoom.getPlayerRole(senderClient);
-                    senderClient.sendEvent("player_joined", new RoomMessage(
+                String role = room.getPlayerRole(senderClient);
+                String token = room.getPlayerXToken() != null ? room.getPlayerXToken().toString() : null;
+                senderClient.sendEvent("player_joined", new RoomMessage(
                         MessageType.SERVER,
                         "Room created and joined successfully",
-                        roomId,
+                        room.getRoomId(),
                         role,
-                        joinedRoom.getStatus()
-                    ));
-                    log.info("Room {} created by client {} and added as player 1 (X)", roomId, senderClient.getSessionId());
-                } else {
-                    // This shouldn't happen, but handle it just in case
-                    senderClient.sendEvent("error", new Message(MessageType.SERVER, "Failed to join created room"));
-                    log.error("Failed to join room {} after creation", roomId);
-                }
+                        room.getStatus(),
+                        token));
+                log.info("Room {} created by client {}", room.getRoomId(), senderClient.getSessionId());
             } else {
-                senderClient.sendEvent("error", new Message(MessageType.SERVER, "Room already exists"));
-                log.warn("Failed to create room {} - already exists", roomId);
+                senderClient.sendEvent("error", new Message(MessageType.SERVER, "Failed to create room"));
             }
         };
     }
@@ -115,25 +105,27 @@ public class SocketListener {
         return (senderClient, data, ackSender) -> {
             String roomId = data.getRoom();
             if (roomId == null || roomId.isEmpty()) {
-                log.warn("Join room request with null or empty room ID");
                 senderClient.sendEvent("error", new Message(MessageType.SERVER, "Room ID is required"));
                 return;
             }
-            
-            Room room = roomService.joinRoom(roomId, senderClient);
+
+            Room room = roomService.joinRoom(roomId.trim().toUpperCase(), senderClient);
             if (room != null) {
                 String role = room.getPlayerRole(senderClient);
+                String token = room.getPlayerTokenForRole(role) != null
+                        ? room.getPlayerTokenForRole(role).toString()
+                        : null;
                 senderClient.sendEvent("player_joined", new RoomMessage(
-                    MessageType.SERVER,
-                    "Joined room successfully",
-                    roomId,
-                    role,
-                    room.getStatus()
-                ));
+                        MessageType.SERVER,
+                        "Joined room successfully",
+                        roomId,
+                        role,
+                        room.getStatus(),
+                        token));
                 log.info("Client {} joined room {} as {}", senderClient.getSessionId(), roomId, role);
             } else {
-                senderClient.sendEvent("error", new Message(MessageType.SERVER, "Failed to join room. Room may not exist or be full."));
-                log.warn("Failed to join room {} for client {}", roomId, senderClient.getSessionId());
+                senderClient.sendEvent("error", new Message(MessageType.SERVER,
+                        "Failed to join room. Room may not exist or be full."));
             }
         };
     }
@@ -142,26 +134,22 @@ public class SocketListener {
         return (senderClient, data, ackSender) -> {
             String roomId = data.getRoom();
             if (roomId == null || roomId.isEmpty()) {
-                log.warn("Reconnect request with null or empty room ID");
                 senderClient.sendEvent("error", new Message(MessageType.SERVER, "Room ID is required"));
                 return;
             }
-            
-            Room room = roomService.handleReconnect(senderClient, roomId);
-            if (room != null) {
-                log.info("Client {} reconnected to room {}", senderClient.getSessionId(), roomId);
+
+            Room room = roomService.handleReconnect(senderClient, roomId.trim().toUpperCase(), data.getPlayerToken());
+            if (room == null) {
+                senderClient.sendEvent("error", new Message(MessageType.SERVER,
+                        "Failed to reconnect. Room may not exist or token is invalid."));
             } else {
-                senderClient.sendEvent("error", new Message(MessageType.SERVER, "Failed to reconnect. Room may not exist or you are not the disconnected player."));
-                log.warn("Failed to reconnect client {} to room {}", senderClient.getSessionId(), roomId);
+                log.info("Client {} reconnected to room {}", senderClient.getSessionId(), roomId);
             }
         };
     }
 
     private ConnectListener onConnected() {
-        return (client) -> {
-            log.info("Socket ID[{}] Connected to socket", client.getSessionId().toString());
-            // Don't auto-join room - wait for explicit join_room event
-        };
+        return (client) -> log.info("Socket ID[{}] Connected to socket", client.getSessionId().toString());
     }
 
     private DisconnectListener onDisconnected() {
@@ -170,5 +158,4 @@ public class SocketListener {
             roomService.handleDisconnect(client);
         };
     }
-
 }

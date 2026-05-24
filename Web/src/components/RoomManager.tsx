@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CreateRoomPayload, JoinRoomPayload } from '../types';
-import { generateRoomId, normalizeRoomId } from '../utils/roomId';
+import { normalizeRoomId, isValidRoomId, ROOM_ID_LENGTH } from '../utils/roomId';
 
 interface RoomManagerProps {
   onCreateRoom: (payload: CreateRoomPayload) => void;
@@ -14,14 +14,13 @@ export default function RoomManager({ onCreateRoom, onJoinRoom, disabled }: Room
   const handleCreateRoom = () => {
     onCreateRoom({
       type: 'CLIENT',
-      room: generateRoomId(),
       message: 'Creating room',
     });
   };
 
   const handleJoinRoom = () => {
     const room = normalizeRoomId(joinRoomId);
-    if (room) {
+    if (room && isValidRoomId(room)) {
       onJoinRoom({
         type: 'CLIENT',
         room,
@@ -53,12 +52,12 @@ export default function RoomManager({ onCreateRoom, onJoinRoom, disabled }: Room
           }}
           disabled={disabled}
           className="room-input"
-          maxLength={5}
+          maxLength={ROOM_ID_LENGTH}
           autoCapitalize="characters"
         />
         <button
           onClick={handleJoinRoom}
-          disabled={disabled || !joinRoomId.trim()}
+          disabled={disabled || !isValidRoomId(joinRoomId)}
           className="room-button"
         >
           Join Room
