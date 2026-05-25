@@ -10,10 +10,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 public abstract class PostgresIntegrationTestBase {
 
     @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("uttt")
-            .withUsername("uttt")
-            .withPassword("uttt");
+    static final PostgreSQLContainer<?> POSTGRES = createPostgres();
+
+    @SuppressWarnings("resource") // Container is closed by Testcontainers, suppressing resource leak warning
+    private static PostgreSQLContainer<?> createPostgres() {
+        return new PostgreSQLContainer<>("postgres:16-alpine")
+                .withDatabaseName("uttt")
+                .withUsername("uttt")
+                .withPassword("uttt");
+    }
 
     @DynamicPropertySource
     static void configureDatasource(DynamicPropertyRegistry registry) {
