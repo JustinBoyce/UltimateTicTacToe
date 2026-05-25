@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-import com.uttt.utttapi.game.UltimateTicTacToe;
 import com.uttt.utttapi.room.GameResult;
 import com.uttt.utttapi.room.RecordStatus;
 import com.uttt.utttapi.room.Room;
