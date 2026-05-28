@@ -681,13 +681,16 @@ Runtime settings use [`application.properties`](src/main/resources/application.p
 
 | Property | Env var (override) | Purpose |
 |----------|-------------------|---------|
+| `spring.datasource.url` | `DATABASE_URL` | JDBC URL (local default: `localhost:5432/uttt`; prod default: Supabase with `sslmode=require`) |
+| `spring.datasource.username` | `DATABASE_USERNAME` | DB user (local default `uttt`; prod default `postgres`) |
+| `spring.datasource.password` | `DATABASE_PASSWORD` | DB password (**required** in prod; no default) |
 | `socket-server.host` | `SOCKET_SERVER_HOST` | Socket.IO bind hostname (e.g. `localhost` for local-only, `0.0.0.0` in production) |
 | `socket-server.port` | `SOCKET_SERVER_PORT` | Listen port (default `8085`) |
 | `socket-server.allowed-origins` | `SOCKET_SERVER_ALLOWED_ORIGINS` | CORS / Socket.IO `Origin` check (single origin, or `*`; comma-separated lists are collapsed to `*` with a warning—prefer one explicit origin in production) |
 
 **Local development:** run with profile `local` so Vite origins are allowed, e.g. `SPRING_PROFILES_ACTIVE=local` (or `--spring.profiles.active=local`).
 
-**Production:** set `SPRING_PROFILES_ACTIVE=prod` and set `SOCKET_SERVER_ALLOWED_ORIGINS` to your hosted frontend origin (e.g. `https://yourusername.github.io`). Avoid `*` in production unless you accept the security tradeoff.
+**Production:** set `SPRING_PROFILES_ACTIVE=prod`, `DATABASE_PASSWORD` (Supabase), and `SOCKET_SERVER_ALLOWED_ORIGINS` to your hosted frontend origin (e.g. `https://yourusername.github.io`). Copy [`API/.env.example`](.env.example) to `API/.env` for local prod runs; on a host, set the same variables in the provider dashboard. Avoid `*` in production unless you accept the security tradeoff.
 
 ### Frontend (Vite)
 
